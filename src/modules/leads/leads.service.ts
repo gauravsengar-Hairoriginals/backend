@@ -74,6 +74,9 @@ export class LeadsService {
                 pageType: dto.pageType,
                 campaignId: dto.campaignId,
                 specificDetails: dto.specificDetails,
+                preferredProducts: dto.preferredProducts,
+                preferredExperienceCenter: dto.preferredExperienceCenter,
+                preferredProductOptions: dto.preferredProductOptions,
                 status: LeadStatus.NEW,
             });
 

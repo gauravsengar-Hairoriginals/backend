@@ -61,6 +61,20 @@ export class CreateLeadDto {
     @IsString()
     @IsOptional()
     notes?: string;
+
+    @ApiPropertyOptional({ example: ['Hair Extension'] })
+    @IsOptional()
+    preferredProducts?: string[];
+
+    @ApiPropertyOptional({ example: 'Delhi HO' })
+    @IsString()
+    @IsOptional()
+    preferredExperienceCenter?: string;
+
+    @ApiPropertyOptional()
+    @IsObject()
+    @IsOptional()
+    preferredProductOptions?: Record<string, Record<string, string>>;
 }
 
 // ── Update Lead Record (caller tracking fields) ───────────────────────────────
