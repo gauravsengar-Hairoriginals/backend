@@ -42,7 +42,7 @@ class AddressDto {
 export class CreateCustomerDto {
     @ApiProperty({ example: '+919876543210', description: 'Phone in E.164 format' })
     @IsString()
-    @Matches(/^\+[1-9]\d{6,14}$/, { message: 'Phone must be in E.164 format' })
+    @Matches(/^\+?[1-9]\d{6,14}$/, { message: 'Phone must be valid (E.164 or similar)' })
     phone: string;
 
     @ApiPropertyOptional({ example: 'john@example.com' })
@@ -89,4 +89,9 @@ export class CreateCustomerDto {
     @IsEnum(CustomerScope)
     @IsOptional()
     scope?: CustomerScope;
+
+    @ApiPropertyOptional({ example: '123456789' })
+    @IsString()
+    @IsOptional()
+    shopifyId?: string;
 }

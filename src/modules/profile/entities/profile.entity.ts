@@ -37,18 +37,7 @@ export class Profile {
     @Column({ nullable: true })
     pincode: string;
 
-    // Stylist-specific fields
-    @Column({ name: 'salon_name', nullable: true })
-    salonName: string;
 
-    @Column({ name: 'salon_address', nullable: true })
-    salonAddress: string;
-
-    @Column({ name: 'salon_city', nullable: true })
-    salonCity: string;
-
-    @Column({ name: 'salon_pincode', nullable: true })
-    salonPincode: string;
 
     @Column({ name: 'years_of_experience', nullable: true })
     yearsOfExperience: number;
@@ -78,6 +67,12 @@ export class Profile {
 
     @Column({ name: 'pan_number', nullable: true })
     panNumber: string;
+
+    @Column({ name: 'upi_phone', nullable: true })
+    upiPhone: string;
+
+    @Column({ name: 'upi_verification_attempts', default: 0 })
+    upiVerificationAttempts: number;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

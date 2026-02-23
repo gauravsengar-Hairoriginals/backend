@@ -47,11 +47,11 @@ export class CustomerSyncProcessor {
     }
 
     @Process('full-sync')
-    async handleFullSync(job: Job) {
-        this.logger.log('Processing full customer sync');
+    async handleFullSync(job: Job<{ days?: number }>) {
+        this.logger.log(`Processing full customer sync${job.data.days ? ` for last ${job.data.days} days` : ''}`);
 
         try {
-            const result = await this.customerSyncService.syncAllCustomers();
+            const result = await this.customerSyncService.syncAllCustomers(undefined, job.data.days);
             this.logger.log(`Full sync complete: ${result.synced} synced, ${result.errors} errors`);
             return result;
         } catch (error) {

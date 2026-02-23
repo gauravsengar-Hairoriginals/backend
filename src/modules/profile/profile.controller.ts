@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Patch,
+    Post,
     Body,
     UseGuards,
     ForbiddenException,
@@ -13,12 +14,34 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
+// Available specialization options for stylists
+const SPECIALIZATION_OPTIONS = [
+    { value: 'hair_extensions', label: 'Hair Extensions' },
+    { value: 'hair_coloring', label: 'Hair Coloring' },
+    { value: 'hair_styling', label: 'Hair Styling' },
+    { value: 'hair_treatments', label: 'Hair Treatments' },
+    { value: 'bridal_styling', label: 'Bridal Styling' },
+    { value: 'mens_grooming', label: "Men's Grooming" },
+    { value: 'keratin_treatment', label: 'Keratin Treatment' },
+    { value: 'hair_spa', label: 'Hair Spa' },
+    { value: 'hair_rebonding', label: 'Hair Rebonding' },
+    { value: 'wig_fitting', label: 'Wig Fitting' },
+    { value: 'other', label: 'Other' },
+];
+
 @ApiTags('Profile')
 @Controller('api/v1/profile')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class ProfileController {
     constructor(private readonly profileService: ProfileService) { }
+
+    @Get('specializations')
+    @ApiOperation({ summary: 'Get list of available specializations' })
+    @ApiResponse({ status: 200, description: 'Specializations retrieved successfully' })
+    getSpecializations() {
+        return SPECIALIZATION_OPTIONS;
+    }
 
     @Get()
     @ApiOperation({ summary: 'Get current user profile' })
@@ -67,5 +90,12 @@ export class ProfileController {
             throw new ForbiddenException('Only field agents can update field agent profile fields');
         }
         return this.profileService.updateFieldAgentProfile(user.id, fieldAgentProfileDto);
+    }
+
+    @Post('verify-upi')
+    @ApiOperation({ summary: 'Verify UPI Phone Number' })
+    @ApiResponse({ status: 201, description: 'Verification initiated successfully' })
+    async verifyUpi(@CurrentUser() user: any, @Body('upiPhone') upiPhone: string) {
+        return this.profileService.verifyUpi(user.id, upiPhone);
     }
 }

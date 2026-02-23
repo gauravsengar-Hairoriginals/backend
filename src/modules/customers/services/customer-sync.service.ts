@@ -26,14 +26,24 @@ export class CustomerSyncService {
      * Full sync with checkpoint support for resumable operations
      * @param fromShopifyId - Resume from this Shopify ID (for failed syncs)
      */
-    async syncAllCustomers(fromShopifyId?: string): Promise<SyncResult> {
-        this.logger.log(`Starting full customer sync from Shopify${fromShopifyId ? ` (resuming from ${fromShopifyId})` : ''}`);
+    async syncAllCustomers(fromShopifyId?: string, days?: number): Promise<SyncResult> {
+        this.logger.log(`Starting full customer sync from Shopify${fromShopifyId ? ` (resuming from ${fromShopifyId})` : ''}${days ? ` (last ${days} days)` : ''}`);
 
         const result: SyncResult = { synced: 0, skipped: 0, errors: 0 };
         let skipUntilFound = !!fromShopifyId;
 
         try {
-            const shopifyCustomers = await this.shopifyService.fetchAllCustomers();
+            let createdAtMin: Date | undefined;
+
+            if (days) {
+                const dateOffset = new Date();
+                dateOffset.setDate(dateOffset.getDate() - days);
+                createdAtMin = dateOffset;
+            }
+
+            const shopifyCustomers = await this.shopifyService.fetchAllCustomers({
+                createdAtMin,
+            });
 
             for (const shopifyCustomer of shopifyCustomers) {
                 const shopifyId = shopifyCustomer.id.toString();

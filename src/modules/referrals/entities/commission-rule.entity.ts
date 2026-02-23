@@ -42,6 +42,9 @@ export class CommissionRule {
     @Column({ name: 'role_applicable', type: 'simple-array', nullable: true })
     roleApplicable: string[];
 
+    @Column({ name: 'allowed_levels', type: 'simple-array', nullable: true })
+    allowedLevels: string[];
+
     @Column({ name: 'product_ids', type: 'simple-array', nullable: true })
     productIds: string[];
 

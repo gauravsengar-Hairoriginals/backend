@@ -5,4 +5,5 @@ export default registerAs('shopify', () => ({
     accessToken: process.env.SHOPIFY_ACCESS_TOKEN,
     webhookSecret: process.env.SHOPIFY_WEBHOOK_SECRET,
     apiVersion: '2024-01',
+    priceRuleId: process.env.SHOPIFY_PRICE_RULE_ID,
 }));

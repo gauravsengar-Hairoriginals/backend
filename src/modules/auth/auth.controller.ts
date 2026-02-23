@@ -63,4 +63,11 @@ export class AuthController {
     async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
         return this.authService.verifyOtp(verifyOtpDto.phone, verifyOtpDto.otp);
     }
+    @Post('test-sms')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Test SMS sending (Dev only)' })
+    @ApiResponse({ status: 200, description: 'Test SMS sent' })
+    async testSms(@Body() body: { phone: string; otp: string }) {
+        return this.authService.sendTestSms(body.phone, body.otp);
+    }
 }

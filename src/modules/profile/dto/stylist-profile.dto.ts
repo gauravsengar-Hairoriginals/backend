@@ -22,6 +22,41 @@ export class StylistProfileDto {
     @IsOptional()
     salonPincode?: string;
 
+    @ApiPropertyOptional({ example: 'Delhi' })
+    @IsString()
+    @IsOptional()
+    salonState?: string;
+
+    @ApiPropertyOptional({ example: 28.6139 })
+    @IsNumber()
+    @IsOptional()
+    latitude?: number;
+
+    @ApiPropertyOptional({ example: 77.2090 })
+    @IsNumber()
+    @IsOptional()
+    longitude?: number;
+
+    @ApiPropertyOptional({ example: 'John Owner' })
+    @IsString()
+    @IsOptional()
+    ownerName?: string;
+
+    @ApiPropertyOptional({ example: '+919876543210' })
+    @IsString()
+    @IsOptional()
+    ownerPhone?: string;
+
+    @ApiPropertyOptional({ example: 'Jane Manager' })
+    @IsString()
+    @IsOptional()
+    managerName?: string;
+
+    @ApiPropertyOptional({ example: '+919876543210' })
+    @IsString()
+    @IsOptional()
+    managerPhone?: string;
+
     @ApiPropertyOptional({ example: 5 })
     @IsNumber()
     @IsOptional()
@@ -57,4 +92,9 @@ export class StylistProfileDto {
     @IsOptional()
     @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, { message: 'Invalid PAN number' })
     panNumber?: string;
+
+    @ApiPropertyOptional({ example: '+919876543210' })
+    @IsString()
+    @IsOptional()
+    upiPhone?: string;
 }

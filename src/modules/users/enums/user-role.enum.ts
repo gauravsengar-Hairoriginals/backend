@@ -22,9 +22,17 @@ export enum UserRole {
     VIDEO_CALLING_AGENT = 'VIDEO_CALLING_AGENT',
     FIELD_AGENT = 'FIELD_AGENT',
     EC_STAFF = 'EC_STAFF',
+    LEAD_CALLER = 'LEAD_CALLER',
 
     // External
+    // External
     STYLIST = 'STYLIST',
+    SALES_AGENT = 'SALES_AGENT', // If used elsewhere, keep it.
+    SALON_OWNER = 'SALON_OWNER',
+    SALON_MANAGER = 'SALON_MANAGER',
+
+    // Admin
+    ADMIN = 'ADMIN',
 }
 
 // Role hierarchy for permission checks
@@ -33,6 +41,7 @@ export const ADMIN_ROLES = [
     UserRole.CEO,
     UserRole.CTO,
     UserRole.COO,
+    UserRole.ADMIN,
 ];
 
 export const HEAD_ROLES = [

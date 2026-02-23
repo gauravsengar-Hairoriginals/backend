@@ -309,4 +309,24 @@ export class OrdersService {
 
         return order;
     }
+
+    /**
+     * Trigger bulk sync of orders from Shopify by date range
+     */
+    async syncOrdersByDateRange(startDate: Date, endDate: Date): Promise<{ message: string; count: number }> {
+        const orders = await this.shopifyService.fetchOrdersByDateRange(startDate, endDate);
+
+        this.logger.log(`Queueing ${orders.length} orders for sync from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+        for (const order of orders) {
+            await this.orderSyncQueue.add('sync-from-shopify', {
+                shopifyOrder: order,
+            });
+        }
+
+        return {
+            message: `Successfully queued ${orders.length} orders for sync`,
+            count: orders.length,
+        };
+    }
 }

@@ -79,6 +79,10 @@ export class ShopifyService {
         }
     }
 
+    getConfig(key: string): string | undefined {
+        return this.configService.get<string>(`shopify.${key}`);
+    }
+
     private get baseUrl(): string {
         return `https://${this.shopUrl}/admin/api/${this.apiVersion}`;
     }
@@ -103,6 +107,41 @@ export class ShopifyService {
         return response.json();
     }
 
+    private async makeRequestWithHeaders<T>(endpoint: string, options: RequestInit = {}): Promise<{ data: T; headers: Headers }> {
+        const url = `${this.baseUrl}${endpoint}`;
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Shopify-Access-Token': this.accessToken,
+                ...options.headers,
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            this.logger.error(`Shopify API error: ${response.status} - ${error}`);
+            throw new Error(`Shopify API error: ${response.status}`);
+        }
+
+        return { data: await response.json(), headers: response.headers };
+    }
+
+    private extractPageInfo(linkHeader: string | null): string | null {
+        if (!linkHeader) return null;
+
+        // Link header format: <url>; rel="next", <url>; rel="previous"
+        const nextLink = linkHeader.split(',').find((part) => part.includes('rel="next"'));
+        if (!nextLink) return null;
+
+        // Extract URL
+        const match = nextLink.match(/<([^>]+)>/);
+        if (!match) return null;
+
+        const url = new URL(match[1]);
+        return url.searchParams.get('page_info');
+    }
+
     async fetchAllProducts(): Promise<ShopifyProduct[]> {
         const allProducts: ShopifyProduct[] = [];
         let pageInfo: string | null = null;
@@ -113,18 +152,14 @@ export class ShopifyService {
                 ? `/products.json?limit=${limit}&page_info=${pageInfo}`
                 : `/products.json?limit=${limit}`;
 
-            const response = await this.makeRequest<{ products: ShopifyProduct[] }>(endpoint);
-            allProducts.push(...response.products);
+            const { data, headers } = await this.makeRequestWithHeaders<{ products: ShopifyProduct[] }>(endpoint);
+            allProducts.push(...data.products);
 
-            // Get next page info from Link header
-            // Note: In production, you'd parse the Link header for pagination
-            if (response.products.length < limit) {
-                pageInfo = null;
-            }
+            pageInfo = this.extractPageInfo(headers.get('link'));
 
             this.logger.log(`Fetched ${allProducts.length} products so far`);
 
-            // Rate limiting: Shopify allows 2 calls/second
+            // Rate limiting: Shopify allows 2 calls/second bucket
             await new Promise((resolve) => setTimeout(resolve, 500));
         } while (pageInfo);
 
@@ -144,22 +179,33 @@ export class ShopifyService {
     }
 
     // Customer methods
-    async fetchAllCustomers(): Promise<ShopifyCustomer[]> {
+    async fetchAllCustomers(params?: { createdAtMin?: Date }): Promise<ShopifyCustomer[]> {
         const allCustomers: ShopifyCustomer[] = [];
         let pageInfo: string | null = null;
         const limit = 250;
 
+        // Base query parameters
+        const queryParams = new URLSearchParams({
+            limit: limit.toString(),
+        });
+
+        if (params?.createdAtMin) {
+            queryParams.append('created_at_min', params.createdAtMin.toISOString());
+        }
+
         do {
-            const endpoint = pageInfo
-                ? `/customers.json?limit=${limit}&page_info=${pageInfo}`
-                : `/customers.json?limit=${limit}`;
-
-            const response = await this.makeRequest<{ customers: ShopifyCustomer[] }>(endpoint);
-            allCustomers.push(...response.customers);
-
-            if (response.customers.length < limit) {
-                pageInfo = null;
+            let url: string;
+            if (pageInfo) {
+                // If page_info is present, it supersedes other parameters as it contains the full cursor
+                url = `/customers.json?limit=${limit}&page_info=${pageInfo}`;
+            } else {
+                url = `/customers.json?${queryParams.toString()}`;
             }
+
+            const { data, headers } = await this.makeRequestWithHeaders<{ customers: ShopifyCustomer[] }>(url);
+            allCustomers.push(...data.customers);
+
+            pageInfo = this.extractPageInfo(headers.get('link'));
 
             this.logger.log(`Fetched ${allCustomers.length} customers so far`);
             await new Promise((resolve) => setTimeout(resolve, 500));
@@ -180,6 +226,21 @@ export class ShopifyService {
         }
     }
 
+    /**
+     * Search for a customer by phone number in Shopify
+     */
+    async searchCustomerByPhone(phone: string): Promise<ShopifyCustomer | null> {
+        try {
+            const response = await this.makeRequest<{ customers: ShopifyCustomer[] }>(
+                `/customers/search.json?query=phone:${encodeURIComponent(phone)}`,
+            );
+            return response.customers.length > 0 ? response.customers[0] : null;
+        } catch (error) {
+            this.logger.error(`Failed to search customer by phone ${phone}:`, error);
+            return null;
+        }
+    }
+
     async createCustomer(customerData: CreateShopifyCustomerInput): Promise<ShopifyCustomer> {
         const response = await this.makeRequest<{ customer: ShopifyCustomer }>(
             '/customers.json',
@@ -187,8 +248,8 @@ export class ShopifyService {
                 method: 'POST',
                 body: JSON.stringify({
                     customer: {
-                        first_name: customerData.firstName,
-                        last_name: customerData.lastName,
+                        first_name: customerData.firstName || 'Customer',
+                        last_name: customerData.lastName || '',
                         email: customerData.email,
                         phone: customerData.phone,
                         verified_email: customerData.verifiedEmail ?? false,
@@ -306,29 +367,75 @@ export class ShopifyService {
     async fetchAllOrders(sinceId?: string): Promise<ShopifyOrder[]> {
         const orders: ShopifyOrder[] = [];
         let pageInfo: string | null = null;
+        const limit = 250;
 
         do {
-            const params = new URLSearchParams({
-                limit: '250',
-                status: 'any',
-            });
-
-            if (sinceId && !pageInfo) {
-                params.append('since_id', sinceId);
+            let url: string;
+            if (pageInfo) {
+                url = `/orders.json?limit=${limit}&page_info=${pageInfo}`;
+            } else {
+                const params = new URLSearchParams({
+                    limit: limit.toString(),
+                    status: 'any',
+                });
+                if (sinceId) {
+                    params.append('since_id', sinceId);
+                }
+                url = `/orders.json?${params.toString()}`;
             }
 
-            const url = pageInfo
-                ? `/orders.json?${pageInfo}`
-                : `/orders.json?${params.toString()}`;
+            const { data, headers } = await this.makeRequestWithHeaders<{ orders: ShopifyOrder[] }>(url);
+            orders.push(...data.orders);
 
-            const response = await this.makeRequest<{ orders: ShopifyOrder[] }>(url);
-            orders.push(...response.orders);
+            pageInfo = this.extractPageInfo(headers.get('link'));
+            this.logger.log(`Fetched ${orders.length} orders so far`);
 
-            pageInfo = null; // Would extract from Link header for pagination
+            await new Promise((resolve) => setTimeout(resolve, 500));
 
         } while (pageInfo);
 
-        this.logger.log(`Fetched ${orders.length} orders from Shopify`);
+        this.logger.log(`Fetched total ${orders.length} orders from Shopify`);
+        return orders;
+    }
+
+
+    /**
+     * Fetch orders by date range (created_at)
+     */
+    async fetchOrdersByDateRange(startDate: Date, endDate: Date): Promise<ShopifyOrder[]> {
+        const orders: ShopifyOrder[] = [];
+        let pageInfo: string | null = null;
+        const limit = 250;
+
+        // Base query parameters
+        const queryParams = new URLSearchParams({
+            limit: limit.toString(),
+            status: 'any',
+            created_at_min: startDate.toISOString(),
+            created_at_max: endDate.toISOString(),
+        });
+
+        this.logger.log(`Fetching orders from Shopify between ${startDate.toISOString()} and ${endDate.toISOString()}`);
+
+        do {
+            let url: string;
+            if (pageInfo) {
+                url = `/orders.json?limit=${limit}&page_info=${pageInfo}`;
+            } else {
+                url = `/orders.json?${queryParams.toString()}`;
+            }
+
+            const { data, headers } = await this.makeRequestWithHeaders<{ orders: ShopifyOrder[] }>(url);
+            orders.push(...data.orders);
+
+            pageInfo = this.extractPageInfo(headers.get('link'));
+            this.logger.log(`Fetched ${orders.length} orders so far...`);
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+
+        } while (pageInfo);
+
+        this.logger.log(`Fetched total ${orders.length} orders from Shopify for sync`);
         return orders;
     }
 
@@ -405,6 +512,16 @@ export class ShopifyService {
     }
 
     /**
+     * Get a price rule
+     */
+    async getPriceRule(priceRuleId: string): Promise<ShopifyPriceRule> {
+        const response = await this.makeRequest<{ price_rule: ShopifyPriceRule }>(
+            `/price_rules/${priceRuleId}.json`,
+        );
+        return response.price_rule;
+    }
+
+    /**
      * Delete a price rule (and its discount codes)
      */
     async deletePriceRule(priceRuleId: string): Promise<void> {
@@ -444,6 +561,9 @@ export interface ShopifyPriceRule {
     once_per_customer: boolean;
     created_at: string;
     updated_at: string;
+    prerequisite_subtotal_range?: {
+        greater_than_or_equal_to: string;
+    };
 }
 
 export interface ShopifyDiscountCodeResponse {
@@ -579,7 +699,7 @@ export interface ShopifyOrder {
     line_items: ShopifyLineItem[];
     shipping_address: ShopifyOrderAddress | null;
     billing_address: ShopifyOrderAddress | null;
-    customer: { id: number } | null;
+    customer: ShopifyCustomer | null;
     note: string | null;
     tags: string;
     cancel_reason: string | null;

@@ -35,10 +35,15 @@ export class CreateReferralDto {
     @IsString()
     customerPhone: string;
 
-    @ApiPropertyOptional({ example: 'John Doe', description: 'Customer name (optional)' })
+    @ApiPropertyOptional({ example: 'John', description: 'Customer first name' })
     @IsString()
     @IsOptional()
-    customerName?: string;
+    firstName?: string;
+
+    @ApiPropertyOptional({ example: 'Doe', description: 'Customer last name' })
+    @IsString()
+    @IsOptional()
+    lastName?: string;
 
     @ApiPropertyOptional({ type: AddressDto, description: 'Customer address (optional)' })
     @ValidateNested()

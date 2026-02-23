@@ -80,6 +80,14 @@ export class Order {
     @Column({ name: 'customer_id', nullable: true })
     customerId: string;
 
+    @Column({ name: 'customer_shopify_id', nullable: true })
+    @Index()
+    customerShopifyId: string;
+
+    @Column({ name: 'customer_phone', nullable: true })
+    @Index()
+    customerPhone: string;
+
     @ManyToOne(() => Customer, { nullable: true })
     @JoinColumn({ name: 'customer_id' })
     customer: Customer;
@@ -189,6 +197,10 @@ export class Order {
     // Line Items relation
     @OneToMany(() => OrderLineItem, (lineItem) => lineItem.order, { cascade: true })
     lineItems: OrderLineItem[];
+
+    // Discount Usages relation (for detailed tracking)
+    @OneToMany('OrderDiscountUsage', 'order', { cascade: true })
+    discountUsages: any[];
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

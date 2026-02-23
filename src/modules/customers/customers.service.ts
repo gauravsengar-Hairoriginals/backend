@@ -33,6 +33,14 @@ export class CustomersService {
     async create(dto: CreateCustomerDto): Promise<Customer> {
         const scope = dto.scope || CustomerScope.LOCAL;
 
+        // Normalize inputs
+        if (dto.phone) {
+            dto.phone = this.normalizePhone(dto.phone);
+        }
+        if (dto.email) {
+            dto.email = this.normalizeEmail(dto.email);
+        }
+
         // Check for existing customer with SAME phone AND email (treat as same customer)
         const existingExact = await this.customerRepository.findOne({
             where: { phone: dto.phone, email: dto.email || undefined as any },
@@ -51,9 +59,9 @@ export class CustomersService {
             ? await this.customerRepository.find({ where: { email: dto.email } })
             : [];
 
-        let shopifyId: string | undefined;
+        let shopifyId: string | undefined = dto.shopifyId;
 
-        // If global scope, create in Shopify first
+        // If global scope, create in Shopify first (or sync if already exists)
         if (scope === CustomerScope.GLOBAL) {
             this.logger.log(`Creating customer globally (Shopify + local) for phone: ${dto.phone}`);
 
@@ -72,8 +80,31 @@ export class CustomersService {
                 shopifyId = shopifyCustomer.id.toString();
                 this.logger.log(`Created in Shopify with ID: ${shopifyId}`);
             } catch (error) {
-                this.logger.error('Failed to create customer in Shopify:', error);
-                throw error;
+                // Check if error is "phone already taken" (422 error)
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                if (errorMessage.includes('422')) {
+                    this.logger.log(`Customer already exists in Shopify, searching by phone: ${dto.phone}`);
+
+                    // Search for existing customer in Shopify
+                    const existingShopifyCustomer = await this.shopifyService.searchCustomerByPhone(dto.phone);
+
+                    if (existingShopifyCustomer) {
+                        shopifyId = existingShopifyCustomer.id.toString();
+                        this.logger.log(`Found existing Shopify customer: ${shopifyId}, syncing locally...`);
+
+                        // Use Shopify data to populate local record
+                        dto.firstName = dto.firstName || existingShopifyCustomer.first_name || undefined;
+                        dto.lastName = dto.lastName || existingShopifyCustomer.last_name || undefined;
+                        dto.email = dto.email || existingShopifyCustomer.email || undefined;
+                        dto.acceptsMarketing = dto.acceptsMarketing ?? existingShopifyCustomer.accepts_marketing;
+                    } else {
+                        this.logger.error('Customer exists in Shopify but could not be found by phone search');
+                        throw error;
+                    }
+                } else {
+                    this.logger.error('Failed to create customer in Shopify:', error);
+                    throw error;
+                }
             }
         } else {
             this.logger.log(`Creating customer locally only for phone: ${dto.phone}`);
@@ -150,10 +181,22 @@ export class CustomersService {
         }
 
         if (search) {
+            let searchTerm = search;
+            // Check if search looks like a phone number (mostly digits)
+            if (/^[\d\s+\-()]{5,}$/.test(search)) {
+                const normalizedSearch = this.normalizePhone(search);
+                // Relaxed search: try normalized OR raw
+                searchTerm = normalizedSearch;
+            }
+
             qb.andWhere(
                 '(customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.email ILIKE :search)',
                 { search: `%${search}%` },
             );
+            // Also try exact match on normalized phone if different
+            if (searchTerm !== search) {
+                qb.orWhere('customer.phone = :normalizedPhone', { normalizedPhone: searchTerm });
+            }
         }
 
         if (hasOrders !== undefined) {
@@ -187,15 +230,17 @@ export class CustomersService {
     }
 
     async findByPhone(phone: string): Promise<Customer | null> {
+        const normalized = this.normalizePhone(phone);
         return this.customerRepository.findOne({
-            where: { phone },
+            where: { phone: normalized },
             relations: ['profile'],
         });
     }
 
     async findByEmail(email: string): Promise<Customer | null> {
+        const normalized = this.normalizeEmail(email);
         return this.customerRepository.findOne({
-            where: { email },
+            where: { email: normalized },
             relations: ['profile'],
         });
     }
@@ -209,6 +254,14 @@ export class CustomersService {
 
     async update(id: string, updateData: Partial<Customer>): Promise<Customer> {
         const customer = await this.findById(id);
+
+        if (updateData.phone) {
+            updateData.phone = this.normalizePhone(updateData.phone);
+        }
+        if (updateData.email) {
+            updateData.email = this.normalizeEmail(updateData.email);
+        }
+
         Object.assign(customer, updateData);
         return this.customerRepository.save(customer);
     }
@@ -227,8 +280,8 @@ export class CustomersService {
         return this.profileRepository.save(profile);
     }
 
-    async triggerFullSync(): Promise<{ jobId: string }> {
-        const job = await this.customerSyncQueue.add('full-sync', {}, {
+    async triggerFullSync(days?: number): Promise<{ jobId: string }> {
+        const job = await this.customerSyncQueue.add('full-sync', { days }, {
             attempts: 3,
             backoff: {
                 type: 'exponential',
@@ -253,5 +306,28 @@ export class CustomersService {
             withOrders,
             vip,
         };
+    }
+
+    private normalizePhone(phone: string): string {
+        // Strip all non-digit characters
+        const digits = phone.replace(/\D/g, '');
+
+        // Handle India cases (most common)
+        if (digits.length === 10) {
+            return `+91${digits}`;
+        }
+        if (digits.length === 11 && digits.startsWith('0')) {
+            return `+91${digits.substring(1)}`;
+        }
+        if (digits.length === 12 && digits.startsWith('91')) {
+            return `+${digits}`;
+        }
+
+        // General fallback - ensure it starts with +
+        return `+${digits}`;
+    }
+
+    private normalizeEmail(email: string): string {
+        return email.trim().toLowerCase();
     }
 }

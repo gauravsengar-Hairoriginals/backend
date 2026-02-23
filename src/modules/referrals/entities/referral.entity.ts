@@ -16,6 +16,7 @@ import { Order } from '../../orders/entities/order.entity';
 export enum ReferralStatus {
     PENDING = 'pending',
     REDEEMED = 'redeemed',
+    PAYABLE = 'payable',
     CREDITED = 'credited',
     EXPIRED = 'expired',
     CANCELLED = 'cancelled',
@@ -79,11 +80,27 @@ export class Referral {
     @Column({ name: 'commission_amount', type: 'decimal', precision: 10, scale: 2, nullable: true })
     commissionAmount: number;
 
+    @Column({ name: 'suggested_commission', type: 'decimal', precision: 10, scale: 2, nullable: true })
+    suggestedCommission: number;
+
+    @Column({ name: 'suggested_salon_commission', type: 'decimal', precision: 10, scale: 2, nullable: true })
+    suggestedSalonCommission: number;
+
+    @Column({ name: 'actual_salon_commission', type: 'decimal', precision: 10, scale: 2, nullable: true })
+    actualSalonCommission: number;
+
     @Column({ name: 'commission_rule_id', nullable: true })
     commissionRuleId: string;
 
     @Column({ name: 'credited_at', nullable: true })
     creditedAt: Date;
+
+    // Payment References
+    @Column({ name: 'stylist_payment_reference', nullable: true })
+    stylistPaymentReference: string;
+
+    @Column({ name: 'salon_payment_reference', nullable: true })
+    salonPaymentReference: string;
 
     // Notes
     @Column({ type: 'text', nullable: true })

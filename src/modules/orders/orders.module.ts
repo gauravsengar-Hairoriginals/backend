@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { Order, OrderLineItem } from './entities/order.entity';
+import { OrderDiscountUsage } from './entities/order-discount-usage.entity';
 import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 import { OrderSyncProcessor } from './processors/order-sync.processor';
@@ -12,7 +13,7 @@ import { ReferralsModule } from '../referrals/referrals.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Order, OrderLineItem]),
+        TypeOrmModule.forFeature([Order, OrderLineItem, OrderDiscountUsage]),
         BullModule.registerQueue({ name: 'order-sync' }),
         CustomersModule,
         ShopifyModule,

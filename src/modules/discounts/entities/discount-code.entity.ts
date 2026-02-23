@@ -9,6 +9,7 @@ import {
     JoinColumn,
 } from 'typeorm';
 import { Customer } from '../../customers/entities/customer.entity';
+import { PricingRule } from './pricing-rule.entity';
 
 export enum DiscountType {
     PERCENTAGE = 'percentage',
@@ -30,6 +31,13 @@ export class DiscountCode {
     // Shopify References
     @Column({ name: 'shopify_price_rule_id', nullable: true })
     shopifyPriceRuleId: string;
+
+    @Column({ name: 'pricing_rule_id', nullable: true })
+    pricingRuleId: string;
+
+    @ManyToOne(() => PricingRule, { nullable: true })
+    @JoinColumn({ name: 'pricing_rule_id' })
+    pricingRule: PricingRule;
 
     @Column({ name: 'shopify_discount_code_id', nullable: true })
     shopifyDiscountCodeId: string;

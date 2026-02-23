@@ -7,12 +7,19 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Security
-  app.use(helmet());
+  // CORS — allow all origins in development
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  // Security — disable headers that conflict with cross-origin API calls
+  app.use(helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginOpenerPolicy: false,
+  }));
 
   // Validation
   app.useGlobalPipes(

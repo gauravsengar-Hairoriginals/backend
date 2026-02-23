@@ -1,11 +1,55 @@
-import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsBoolean } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, Min, Max, IsBoolean, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { DiscountType } from '../entities/discount-code.entity';
+
+class AddressDto {
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    address1?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    address2?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    city?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    state?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    pincode?: string;
+}
 
 export class CreateDiscountDto {
     @ApiProperty({ example: '+919876543210', description: 'Customer phone number' })
     @IsString()
     customerPhone: string;
+
+    @ApiPropertyOptional({ example: 'John', description: 'Customer first name' })
+    @IsString()
+    @IsOptional()
+    firstName?: string;
+
+    @ApiPropertyOptional({ example: 'Doe', description: 'Customer last name' })
+    @IsString()
+    @IsOptional()
+    lastName?: string;
+
+    @ApiPropertyOptional({ type: AddressDto, description: 'Customer address' })
+    @ValidateNested()
+    @Type(() => AddressDto)
+    @IsOptional()
+    address?: AddressDto;
 
     @ApiProperty({ enum: DiscountType, example: DiscountType.PERCENTAGE })
     @IsEnum(DiscountType)

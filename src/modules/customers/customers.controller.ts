@@ -14,7 +14,7 @@ import { CustomersService, CustomersQuery } from './customers.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { ADMIN_ROLES } from '../users/enums/user-role.enum';
+import { ADMIN_ROLES, UserRole } from '../users/enums/user-role.enum';
 import { CustomerType } from './entities/customer.entity';
 import { CreateCustomerDto, CustomerScope } from './dto/create-customer.dto';
 
@@ -26,7 +26,7 @@ export class CustomersController {
     constructor(private readonly customersService: CustomersService) { }
 
     @Post()
-    @Roles(...ADMIN_ROLES)
+    @Roles(...ADMIN_ROLES, UserRole.STYLIST)
     @ApiOperation({
         summary: 'Create a new customer',
         description: 'scope=local (default) creates in HO-Backend only. scope=global creates in Shopify first, then syncs back.',
@@ -110,8 +110,9 @@ export class CustomersController {
     @Post('sync')
     @Roles(...ADMIN_ROLES)
     @ApiOperation({ summary: 'Trigger full customer sync from Shopify' })
+    @ApiQuery({ name: 'days', required: false, type: Number, description: 'Sync customers created in last N days' })
     @ApiResponse({ status: 201, description: 'Sync job queued' })
-    triggerSync() {
-        return this.customersService.triggerFullSync();
+    triggerSync(@Query('days') days?: string) {
+        return this.customersService.triggerFullSync(days ? parseInt(days, 10) : undefined);
     }
 }

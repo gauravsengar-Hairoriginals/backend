@@ -60,6 +60,21 @@ export class ReferralsController {
         return this.referralsService.findMyReferrals(req.user.id, query);
     }
 
+    @Post(':id/commission')
+    @Roles(...ADMIN_ROLES)
+    async updateCommission(
+        @Param('id') id: string,
+        @Body() body: { amount: number; salonAmount?: number; status?: ReferralStatus },
+    ) {
+        return this.referralsService.updateCommission(id, body.amount, body.salonAmount, body.status);
+    }
+
+    @Post('credit-bulk')
+    @Roles(...ADMIN_ROLES)
+    async bulkCredit(@Body() body: { referralIds: string[]; stylistRef?: string; salonRef?: string }) {
+        return this.referralsService.bulkCredit(body.referralIds, body.stylistRef, body.salonRef);
+    }
+
     @Get('my/stats')
     @Roles(...REFERRAL_ROLES)
     @ApiOperation({ summary: 'Get my referral stats (dashboard summary)' })

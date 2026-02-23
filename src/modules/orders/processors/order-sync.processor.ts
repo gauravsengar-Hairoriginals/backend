@@ -10,6 +10,7 @@ import { Order, OrderLineItem, OrderSyncStatus, FinancialStatus, FulfillmentStat
 import { DiscountsService } from '../../discounts/discounts.service';
 import { DiscountStatus } from '../../discounts/entities/discount-code.entity';
 import { ReferralsService } from '../../referrals/referrals.service';
+import { Customer } from '../../customers/entities/customer.entity';
 
 @Processor('order-sync')
 export class OrderSyncProcessor {
@@ -112,18 +113,76 @@ export class OrderSyncProcessor {
         }
 
         // Find or create customer
-        let customer: { id: string } | null = null;
-        if (shopifyOrder.customer?.id) {
-            customer = await this.customersService.findByShopifyId(
-                shopifyOrder.customer.id.toString(),
-            );
+        let customer: Customer | null = null;
+        const customerData = shopifyOrder.customer;
+
+        if (customerData) {
+            const rawPhone = customerData.phone || shopifyOrder.shipping_address?.phone || shopifyOrder.billing_address?.phone;
+            const normalizedPhone = rawPhone ? (rawPhone.startsWith('+') ? rawPhone : `+${rawPhone.replace(/\D/g, '')}`) : undefined;
+            const normalizedEmail = customerData.email?.toLowerCase();
+
+            // 1. Try by Shopify ID
+            customer = await this.customersService.findByShopifyId(customerData.id.toString());
+
+            // 2. Try by Phone (Normalized)
+            if (!customer && normalizedPhone) {
+                customer = await this.customersService.findByPhone(normalizedPhone);
+
+                if (customer && !customer.shopifyId) {
+                    await this.customersService.update(customer.id, { shopifyId: customerData.id.toString() });
+                }
+            }
+
+            // 3. Try by Email (Normalized)
+            if (!customer && normalizedEmail) {
+                customer = await this.customersService.findByEmail(normalizedEmail);
+
+                if (customer && !customer.shopifyId) {
+                    await this.customersService.update(customer.id, { shopifyId: customerData.id.toString() });
+                }
+            }
+
+            // 4. Create if not found
+            if (!customer) {
+                this.logger.log(`Customer not found for order ${shopifyOrder.name}. Creating new customer...`);
+                try {
+                    customer = await this.customersService.create({
+                        firstName: customerData.first_name || 'Guest',
+                        lastName: customerData.last_name || 'User',
+                        email: normalizedEmail || undefined,
+                        phone: normalizedPhone,
+                        note: customerData.note || undefined,
+                        tags: customerData.tags ? customerData.tags.split(', ') : [],
+                        address: customerData.default_address ? {
+                            address1: customerData.default_address.address1 || '',
+                            address2: customerData.default_address.address2 || '',
+                            city: customerData.default_address.city || '',
+                            state: customerData.default_address.province || '',
+                            pincode: customerData.default_address.zip || '',
+                            country: customerData.default_address.country || 'India',
+                        } : undefined,
+                        shopifyId: customerData.id.toString(),
+                        acceptsMarketing: customerData.accepts_marketing,
+                    } as any);
+                } catch (error) {
+                    this.logger.error(`Failed to create customer for order ${shopifyOrder.name}`, error);
+
+                    // Retry lookup in case of race condition or conflict
+                    if (normalizedPhone) {
+                        customer = await this.customersService.findByPhone(normalizedPhone);
+                    }
+                    if (!customer && normalizedEmail) {
+                        customer = await this.customersService.findByEmail(normalizedEmail);
+                    }
+                }
+            }
         }
 
         // Create new order
         const order = this.orderRepository.create({
             shopifyId,
             orderNumber: shopifyOrder.name,
-            customerId: customer?.id,
+            customerId: customer?.id || undefined,
             syncStatus: OrderSyncStatus.SYNCED,
             syncedAt: new Date(),
             financialStatus: this.mapFinancialStatus(shopifyOrder.financial_status),
@@ -141,6 +200,31 @@ export class OrderSyncProcessor {
             })),
             note: shopifyOrder.note || undefined,
             tags: shopifyOrder.tags?.split(', ').filter(Boolean),
+            shippingAddress: shopifyOrder.shipping_address ? {
+                firstName: shopifyOrder.shipping_address.first_name || undefined,
+                lastName: shopifyOrder.shipping_address.last_name || undefined,
+                address1: shopifyOrder.shipping_address.address1 || undefined,
+                address2: shopifyOrder.shipping_address.address2 || undefined,
+                city: shopifyOrder.shipping_address.city || undefined,
+                state: shopifyOrder.shipping_address.province || undefined,
+                pincode: shopifyOrder.shipping_address.zip || undefined,
+                country: shopifyOrder.shipping_address.country || undefined,
+                phone: shopifyOrder.shipping_address.phone || undefined,
+            } : undefined,
+            billingAddress: shopifyOrder.billing_address ? {
+                firstName: shopifyOrder.billing_address.first_name || undefined,
+                lastName: shopifyOrder.billing_address.last_name || undefined,
+                address1: shopifyOrder.billing_address.address1 || undefined,
+                address2: shopifyOrder.billing_address.address2 || undefined,
+                city: shopifyOrder.billing_address.city || undefined,
+                state: shopifyOrder.billing_address.province || undefined,
+                pincode: shopifyOrder.billing_address.zip || undefined,
+                country: shopifyOrder.billing_address.country || undefined,
+                phone: shopifyOrder.billing_address.phone || undefined,
+            } : undefined,
+            customerShopifyId: customerData?.id?.toString() || undefined,
+            customerPhone: (customerData?.phone || shopifyOrder.shipping_address?.phone || shopifyOrder.billing_address?.phone) || undefined,
+            source: 'shopify-sync',
         });
 
         const savedOrder = await this.orderRepository.save(order);
@@ -167,6 +251,15 @@ export class OrderSyncProcessor {
 
         // Process discount codes → mark referrals as redeemed
         await this.processDiscountRedemption(savedOrder.id, shopifyOrder);
+
+        // Also check if customer has any pending referral (even if no discount code used)
+        if (customer) {
+            try {
+                await this.referralsService.matchOrderToReferral(customer, savedOrder);
+            } catch (error) {
+                this.logger.error(`Failed to match order ${savedOrder.orderNumber} to referral`, error);
+            }
+        }
     }
 
     /**

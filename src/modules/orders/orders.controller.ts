@@ -15,6 +15,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ADMIN_ROLES } from '../users/enums/user-role.enum';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { SyncOrdersDto } from './dto/sync-orders.dto';
 import { OrderSyncStatus, FinancialStatus, FulfillmentStatus } from './entities/order.entity';
 
 @ApiTags('Orders')
@@ -72,6 +73,7 @@ export class OrdersController {
         return this.ordersService.findById(id);
     }
 
+
     @Post(':id/retry')
     @Roles(...ADMIN_ROLES)
     @ApiOperation({ summary: 'Retry failed order sync' })
@@ -79,5 +81,16 @@ export class OrdersController {
     @ApiResponse({ status: 400, description: 'Order is not in failed state' })
     retrySync(@Param('id', ParseUUIDPipe) id: string) {
         return this.ordersService.retrySync(id);
+    }
+
+    @Post('sync/range')
+    @Roles(...ADMIN_ROLES)
+    @ApiOperation({ summary: 'Sync orders from Shopify by date range' })
+    @ApiBody({ type: SyncOrdersDto })
+    @ApiResponse({ status: 200, description: 'Sync started' })
+    async syncByDateRange(@Body() dto: SyncOrdersDto) {
+        const startDate = new Date(dto.startDate);
+        const endDate = new Date(dto.endDate);
+        return this.ordersService.syncOrdersByDateRange(startDate, endDate);
     }
 }

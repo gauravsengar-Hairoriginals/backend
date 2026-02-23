@@ -1,0 +1,484 @@
+
+> ho-backend@0.0.1 start:dev
+> nest start --watch
+
+[2J[3J[H[[90m10:53:49 PM[0m] Starting compilation in watch mode...
+
+[[90m10:53:54 PM[0m] Found 0 errors. Watching for file changes.
+
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +21ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPassportModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigHostModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDiscoveryModule dependencies initialized[39m[38;5;3m +0ms[39m
+[33m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [33m   WARN[39m [38;5;3m[SmsService] [39m[33mTwilio credentials not configured. SMS sending will be disabled.[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mConfigModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +34ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mJwtModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +6ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mBullModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mShopifyModule dependencies initialized[39m[38;5;3m +0ms[39m
+[90m[4mquery:[24m[39m [94mSELECT[0m [95mversion[0m[37m([0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m*[0m [94mFROM[0m [95mcurrent_schema[0m[37m([0m[37m)[0m
+[90m[4mquery:[24m[39m [94mCREATE[0m [37mEXTENSION[0m [94mIF[0m [94mNOT[0m [94mEXISTS[0m [37m"uuid-ossp"[0m
+[90m[4mquery:[24m[39m [37mSTART[0m [37mTRANSACTION[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m*[0m [94mFROM[0m [95mcurrent_schema[0m[37m([0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m*[0m [94mFROM[0m [95mcurrent_database[0m[37m([0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"table_schema"[0m[37m,[0m [37m"table_name"[0m[37m,[0m [95mobj_description[0m[37m([0m[37m([0m[37m'"'[0m [37m|[0m[37m|[0m [37m"table_schema"[0m [37m|[0m[37m|[0m [37m'"."'[0m [37m|[0m[37m|[0m [37m"table_name"[0m [37m|[0m[37m|[0m [37m'"'[0m[37m)[0m[37m:[0m[37m:[0m[37mregclass[0m[37m,[0m [37m'pg_class'[0m[37m)[0m [94mAS[0m [37mtable_comment[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"tables"[0m [94mWHERE[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'field_force_salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customer_profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customers'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'pricing_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'discount_codes'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'orders'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_line_items'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'referrals'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'users'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'product_variants'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'products'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'commission_rules'[0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [94mTRUE[0m [94mFROM[0m [37minformation_schema[0m[37m.[0m[37mcolumns[0m [94mWHERE[0m [37mtable_name[0m [37m=[0m [37m'pg_class'[0m [94mand[0m [37mcolumn_name[0m [37m=[0m [37m'relispartition'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37mcolumns[0m[37m.[0m[37m*[0m[37m,[0m [37mpg_catalog[0m[37m.[0m[95mcol_description[0m[37m([0m[37m([0m[37m'"'[0m [37m|[0m[37m|[0m [37mtable_catalog[0m [37m|[0m[37m|[0m [37m'"."'[0m [37m|[0m[37m|[0m [37mtable_schema[0m [37m|[0m[37m|[0m [37m'"."'[0m [37m|[0m[37m|[0m [37mtable_name[0m [37m|[0m[37m|[0m [37m'"'[0m[37m)[0m[37m:[0m[37m:[0m[37mregclass[0m[37m:[0m[37m:[0m[37moid[0m[37m,[0m [37mordinal_position[0m[37m)[0m [94mAS[0m [37mdescription[0m[37m,[0m [37m([0m[37m'"'[0m [37m|[0m[37m|[0m [37m"udt_schema"[0m [37m|[0m[37m|[0m [37m'"."'[0m [37m|[0m[37m|[0m [37m"udt_name"[0m [37m|[0m[37m|[0m [37m'"'[0m[37m)[0m[37m:[0m[37m:[0m[37m"regtype"[0m[37m:[0m[37m:[0m[94mtext[0m [94mAS[0m [37m"regtype"[0m[37m,[0m [37mpg_catalog[0m[37m.[0m[95mformat_type[0m[37m([0m[37m"col_attr"[0m[37m.[0m[37m"atttypid"[0m[37m,[0m [37m"col_attr"[0m[37m.[0m[37m"atttypmod"[0m[37m)[0m [94mAS[0m [37m"format_type"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mLEFT JOIN[0m [37m"pg_catalog"[0m[37m.[0m[37m"pg_attribute"[0m [94mAS[0m [37m"col_attr"[0m [94mON[0m [37m"col_attr"[0m[37m.[0m[37m"attname"[0m [37m=[0m [37m"columns"[0m[37m.[0m[37m"column_name"[0m [94mAND[0m [37m"col_attr"[0m[37m.[0m[37m"attrelid"[0m [37m=[0m [37m([0m [94mSELECT[0m [37m"cls"[0m[37m.[0m[37m"oid"[0m [94mFROM[0m [37m"pg_catalog"[0m[37m.[0m[37m"pg_class"[0m [94mAS[0m [37m"cls"[0m [94mLEFT JOIN[0m [37m"pg_catalog"[0m[37m.[0m[37m"pg_namespace"[0m [94mAS[0m [37m"ns"[0m [94mON[0m [37m"ns"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"cls"[0m[37m.[0m[37m"relnamespace"[0m [94mWHERE[0m [37m"cls"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m"columns"[0m[37m.[0m[37m"table_name"[0m [94mAND[0m [37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m"columns"[0m[37m.[0m[37m"table_schema"[0m [37m)[0m [94mWHERE[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'products'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'product_variants'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customers'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customer_profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'users'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'pricing_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'commission_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_line_items'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'field_force_salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'orders'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'discount_codes'[0m[37m)[0m [94mOR[0m [37m([0m[37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'referrals'[0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"ns"[0m[37m.[0m[37m"nspname"[0m [94mAS[0m [37m"table_schema"[0m[37m,[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [94mAS[0m [37m"table_name"[0m[37m,[0m [37m"cnst"[0m[37m.[0m[37m"conname"[0m [94mAS[0m [37m"constraint_name"[0m[37m,[0m [95mpg_get_constraintdef[0m[37m([0m[37m"cnst"[0m[37m.[0m[37m"oid"[0m[37m)[0m [94mAS[0m [37m"expression"[0m[37m,[0m [94mCASE[0m [37m"cnst"[0m[37m.[0m[37m"contype"[0m [94mWHEN[0m [37m'p'[0m [94mTHEN[0m [37m'PRIMARY'[0m [94mWHEN[0m [37m'u'[0m [94mTHEN[0m [37m'UNIQUE'[0m [94mWHEN[0m [37m'c'[0m [94mTHEN[0m [37m'CHECK'[0m [94mWHEN[0m [37m'x'[0m [94mTHEN[0m [37m'EXCLUDE'[0m [94mEND[0m [94mAS[0m [37m"constraint_type"[0m[37m,[0m [37m"a"[0m[37m.[0m[37m"attname"[0m [94mAS[0m [37m"column_name"[0m [94mFROM[0m [37m"pg_constraint"[0m [37m"cnst"[0m [94mINNER JOIN[0m [37m"pg_class"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"cnst"[0m[37m.[0m[37m"conrelid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"ns"[0m [94mON[0m [37m"ns"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"cnst"[0m[37m.[0m[37m"connamespace"[0m [94mLEFT JOIN[0m [37m"pg_attribute"[0m [37m"a"[0m [94mON[0m [37m"a"[0m[37m.[0m[37m"attrelid"[0m [37m=[0m [37m"cnst"[0m[37m.[0m[37m"conrelid"[0m [94mAND[0m [37m"a"[0m[37m.[0m[37m"attnum"[0m [37m=[0m [94mANY[0m [37m([0m[37m"cnst"[0m[37m.[0m[37m"conkey"[0m[37m)[0m [94mWHERE[0m [37m"t"[0m[37m.[0m[37m"relkind"[0m [94mIN[0m [37m([0m[37m'r'[0m[37m,[0m [37m'p'[0m[37m)[0m [94mAND[0m [37m([0m[37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'products'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'product_variants'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customers'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customer_profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'users'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'pricing_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'commission_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_line_items'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'field_force_salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'orders'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_discount_usages'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'discount_codes'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'referrals'[0m[37m)[0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"ns"[0m[37m.[0m[37m"nspname"[0m [94mAS[0m [37m"table_schema"[0m[37m,[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [94mAS[0m [37m"table_name"[0m[37m,[0m [37m"i"[0m[37m.[0m[37m"relname"[0m [94mAS[0m [37m"constraint_name"[0m[37m,[0m [37m"a"[0m[37m.[0m[37m"attname"[0m [94mAS[0m [37m"column_name"[0m[37m,[0m [94mCASE[0m [37m"ix"[0m[37m.[0m[37m"indisunique"[0m [94mWHEN[0m [37m't'[0m [94mTHEN[0m [37m'TRUE'[0m [94mELSE[0m[37m'FALSE'[0m [94mEND[0m [94mAS[0m [37m"is_unique"[0m[37m,[0m [95mpg_get_expr[0m[37m([0m[37m"ix"[0m[37m.[0m[37m"indpred"[0m[37m,[0m [37m"ix"[0m[37m.[0m[37m"indrelid"[0m[37m)[0m [94mAS[0m [37m"condition"[0m[37m,[0m [37m"types"[0m[37m.[0m[37m"typname"[0m [94mAS[0m [37m"type_name"[0m[37m,[0m [37m"am"[0m[37m.[0m[37m"amname"[0m [94mAS[0m [37m"index_type"[0m [94mFROM[0m [37m"pg_class"[0m [37m"t"[0m [94mINNER JOIN[0m [37m"pg_index"[0m [37m"ix"[0m [94mON[0m [37m"ix"[0m[37m.[0m[37m"indrelid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [94mINNER JOIN[0m [37m"pg_attribute"[0m [37m"a"[0m [94mON[0m [37m"a"[0m[37m.[0m[37m"attrelid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"oid"[0m  [94mAND[0m [37m"a"[0m[37m.[0m[37m"attnum"[0m [37m=[0m [94mANY[0m [37m([0m[37m"ix"[0m[37m.[0m[37m"indkey"[0m[37m)[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"ns"[0m [94mON[0m [37m"ns"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"relnamespace"[0m [94mINNER JOIN[0m [37m"pg_class"[0m [37m"i"[0m [94mON[0m [37m"i"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"ix"[0m[37m.[0m[37m"indexrelid"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"types"[0m [94mON[0m [37m"types"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"a"[0m[37m.[0m[37m"atttypid"[0m [94mINNER JOIN[0m [37m"pg_am"[0m [37m"am"[0m [94mON[0m [37m"i"[0m[37m.[0m[37m"relam"[0m [37m=[0m [37m"am"[0m[37m.[0m[37m"oid"[0m [94mLEFT JOIN[0m [37m"pg_constraint"[0m [37m"cnst"[0m [94mON[0m [37m"cnst"[0m[37m.[0m[37m"conname"[0m [37m=[0m [37m"i"[0m[37m.[0m[37m"relname"[0m [94mWHERE[0m [37m"t"[0m[37m.[0m[37m"relkind"[0m [94mIN[0m [37m([0m[37m'r'[0m[37m,[0m [37m'p'[0m[37m)[0m [94mAND[0m [37m"cnst"[0m[37m.[0m[37m"contype"[0m [94mIS NULL[0m [94mAND[0m [37m([0m[37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'products'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'product_variants'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customers'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customer_profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'users'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'pricing_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'commission_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_line_items'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'field_force_salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'orders'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_discount_usages'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'discount_codes'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'referrals'[0m[37m)[0m[37m)[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"con"[0m[37m.[0m[37m"conname"[0m [94mAS[0m [37m"constraint_name"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"nspname"[0m [94mAS[0m [37m"table_schema"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"relname"[0m [94mAS[0m [37m"table_name"[0m[37m,[0m [37m"att2"[0m[37m.[0m[37m"attname"[0m [94mAS[0m [37m"column_name"[0m[37m,[0m [37m"ns"[0m[37m.[0m[37m"nspname"[0m [94mAS[0m [37m"referenced_table_schema"[0m[37m,[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [94mAS[0m [37m"referenced_table_name"[0m[37m,[0m [37m"att"[0m[37m.[0m[37m"attname"[0m [94mAS[0m [37m"referenced_column_name"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"confdeltype"[0m [94mAS[0m [37m"on_delete"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"confupdtype"[0m [94mAS[0m [37m"on_update"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"condeferrable"[0m [94mAS[0m [37m"deferrable"[0m[37m,[0m [37m"con"[0m[37m.[0m[37m"condeferred"[0m [94mAS[0m [37m"deferred"[0m [94mFROM[0m [37m([0m [94mSELECT[0m [95mUNNEST[0m [37m([0m[37m"con1"[0m[37m.[0m[37m"conkey"[0m[37m)[0m [94mAS[0m [37m"parent"[0m[37m,[0m [95mUNNEST[0m [37m([0m[37m"con1"[0m[37m.[0m[37m"confkey"[0m[37m)[0m [94mAS[0m [37m"child"[0m[37m,[0m [37m"con1"[0m[37m.[0m[37m"confrelid"[0m[37m,[0m [37m"con1"[0m[37m.[0m[37m"conrelid"[0m[37m,[0m [37m"con1"[0m[37m.[0m[37m"conname"[0m[37m,[0m [37m"con1"[0m[37m.[0m[37m"contype"[0m[37m,[0m [37m"ns"[0m[37m.[0m[37m"nspname"[0m[37m,[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m[37m,[0m [37m"con1"[0m[37m.[0m[37m"condeferrable"[0m[37m,[0m [94mCASE[0m [94mWHEN[0m [37m"con1"[0m[37m.[0m[37m"condeferred"[0m [94mTHEN[0m [37m'INITIALLY DEFERRED'[0m [94mELSE[0m [37m'INITIALLY IMMEDIATE'[0m [94mEND[0m [94mas[0m [37mcondeferred[0m[37m,[0m [94mCASE[0m [37m"con1"[0m[37m.[0m[37m"confdeltype"[0m [94mWHEN[0m [37m'a'[0m [94mTHEN[0m [37m'NO ACTION'[0m [94mWHEN[0m [37m'r'[0m [94mTHEN[0m [37m'RESTRICT'[0m [94mWHEN[0m [37m'c'[0m [94mTHEN[0m [37m'CASCADE'[0m [94mWHEN[0m [37m'n'[0m [94mTHEN[0m [37m'SET NULL'[0m [94mWHEN[0m [37m'd'[0m [94mTHEN[0m [37m'SET DEFAULT'[0m [94mEND[0m [94mas[0m [37m"confdeltype"[0m[37m,[0m [94mCASE[0m [37m"con1"[0m[37m.[0m[37m"confupdtype"[0m [94mWHEN[0m [37m'a'[0m [94mTHEN[0m [37m'NO ACTION'[0m [94mWHEN[0m [37m'r'[0m [94mTHEN[0m [37m'RESTRICT'[0m [94mWHEN[0m [37m'c'[0m [94mTHEN[0m [37m'CASCADE'[0m [94mWHEN[0m [37m'n'[0m [94mTHEN[0m [37m'SET NULL'[0m [94mWHEN[0m [37m'd'[0m [94mTHEN[0m [37m'SET DEFAULT'[0m [94mEND[0m [94mas[0m [37m"confupdtype"[0m [94mFROM[0m [37m"pg_class"[0m [37m"cl"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"ns"[0m [94mON[0m [37m"cl"[0m[37m.[0m[37m"relnamespace"[0m [37m=[0m [37m"ns"[0m[37m.[0m[37m"oid"[0m [94mINNER JOIN[0m [37m"pg_constraint"[0m [37m"con1"[0m [94mON[0m [37m"con1"[0m[37m.[0m[37m"conrelid"[0m [37m=[0m [37m"cl"[0m[37m.[0m[37m"oid"[0m [94mWHERE[0m [37m"con1"[0m[37m.[0m[37m"contype"[0m [37m=[0m [37m'f'[0m [94mAND[0m [37m([0m[37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'products'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'product_variants'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customers'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'customer_profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'users'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'pricing_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'profiles'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'commission_rules'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_line_items'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'field_force_salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'orders'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'salons'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'order_discount_usages'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'discount_codes'[0m[37m)[0m [94mOR[0m [37m([0m[37m"ns"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relname"[0m [37m=[0m [37m'referrals'[0m[37m)[0m[37m)[0m [37m)[0m [37m"con"[0m [94mINNER JOIN[0m [37m"pg_attribute"[0m [37m"att"[0m [94mON[0m [37m"att"[0m[37m.[0m[37m"attrelid"[0m [37m=[0m [37m"con"[0m[37m.[0m[37m"confrelid"[0m [94mAND[0m [37m"att"[0m[37m.[0m[37m"attnum"[0m [37m=[0m [37m"con"[0m[37m.[0m[37m"child"[0m [94mINNER JOIN[0m [37m"pg_class"[0m [37m"cl"[0m [94mON[0m [37m"cl"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"con"[0m[37m.[0m[37m"confrelid"[0m  [94mAND[0m [37m"cl"[0m[37m.[0m[37m"relispartition"[0m [37m=[0m [37m'f'[0m[94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"ns"[0m [94mON[0m [37m"cl"[0m[37m.[0m[37m"relnamespace"[0m [37m=[0m [37m"ns"[0m[37m.[0m[37m"oid"[0m [94mINNER JOIN[0m [37m"pg_attribute"[0m [37m"att2"[0m [94mON[0m [37m"att2"[0m[37m.[0m[37m"attrelid"[0m [37m=[0m [37m"con"[0m[37m.[0m[37m"conrelid"[0m [94mAND[0m [37m"att2"[0m[37m.[0m[37m"attnum"[0m [37m=[0m [37m"con"[0m[37m.[0m[37m"parent"[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'products'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customers'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'gender'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customers'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'customer_type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customers'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'preferred_contact_method'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'customer_profiles'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'price_sensitivity'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'users'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'role'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'users'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'level'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'commission_rules'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'orders'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'sync_status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'orders'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'financial_status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'orders'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'fulfillment_status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'salons'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'level'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'salons'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'services_offered'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'value_type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'target_type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'target_selection'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'order_discount_usages'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'allocation_method'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'discount_codes'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'type'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'discount_codes'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"udt_schema"[0m[37m,[0m [37m"udt_name"[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"columns"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'referrals'[0m [94mAND[0m [37m"column_name"[0m[37m=[0m[37m'status'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'products_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'customers_gender_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'customers_customer_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'customers_preferred_contact_method_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'customer_profiles_price_sensitivity_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'users_role_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'users_level_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'commission_rules_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'orders_sync_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'orders_financial_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'orders_fulfillment_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'salons_level_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'text'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'order_discount_usages_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'order_discount_usages_value_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'order_discount_usages_target_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'order_discount_usages_target_selection_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'order_discount_usages_allocation_method_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'discount_codes_type_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'discount_codes_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m"e"[0m[37m.[0m[37m"enumlabel"[0m [94mAS[0m [37m"value"[0m [94mFROM[0m [37m"pg_enum"[0m [37m"e"[0m [94mINNER JOIN[0m [37m"pg_type"[0m [37m"t"[0m [94mON[0m [37m"t"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"e"[0m[37m.[0m[37m"enumtypid"[0m [94mINNER JOIN[0m [37m"pg_namespace"[0m [37m"n"[0m [94mON[0m [37m"n"[0m[37m.[0m[37m"oid"[0m [37m=[0m [37m"t"[0m[37m.[0m[37m"typnamespace"[0m [94mWHERE[0m [37m"n"[0m[37m.[0m[37m"nspname"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"t"[0m[37m.[0m[37m"typname"[0m [37m=[0m [37m'referrals_status_enum'[0m
+[90m[4mquery:[24m[39m [94mSELECT[0m [37m*[0m [94mFROM[0m [37m"information_schema"[0m[37m.[0m[37m"tables"[0m [94mWHERE[0m [37m"table_schema"[0m [37m=[0m [37m'public'[0m [94mAND[0m [37m"table_name"[0m [37m=[0m [37m'typeorm_metadata'[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"latitude"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"longitude"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"salon_name"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"salon_address"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"salon_city"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"salon_pincode"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"salon_state"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"owner_name"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"owner_phone"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"manager_name"[0m
+[90m[4mquery:[24m[39m [94mALTER TABLE[0m [37m"profiles"[0m [94mDROP COLUMN[0m [37m"manager_phone"[0m
+[90m[4mquery:[24m[39m [94mCOMMIT[0m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmCoreModule dependencies initialized[39m[38;5;3m +202ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mTypeOrmModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +2ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mUsersModule dependencies initialized[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSalonsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPartnerModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProfileModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProductsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCustomersModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDiscountsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mReferralsModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAdminModule dependencies initialized[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mOrdersModule dependencies initialized[39m[38;5;3m +0ms[39m
+[31m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [31m  ERROR[39m [31mDuplicate DTO detected: "UpdateProfileDto" is defined multiple times with different schemas.
+Consider using unique class names or applying @ApiExtraModels() decorator with custom schema names.
+Note: This will throw an error in the next major version.[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAuthController {/api/v1/auth}:[39m[38;5;3m +6ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/login, POST} route[39m[38;5;3m +2ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/register, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/refresh, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/otp/send, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/otp/verify, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/auth/test-sms, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/v1/users}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/field-force, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/field-force, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/field-force/assign, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/field-force/:id/salons, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/:id/deactivate, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/:id/activate, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/users/:id/role, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/health}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/health, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/health/ready, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/health/live, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProfileController {/api/v1/profile}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile/specializations, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile, PATCH} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile/stylist, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile/field-agent, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/profile/verify-upi, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSalonsController {/api/v1/salons}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id/stylists, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id/stylists/:stylistId, DELETE} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/salons/:id/stylists, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProductsController {/api/v1/products}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/products, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/products/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/products/sync, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/products/sync/:jobId, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mShopifyWebhookController {/webhooks/shopify}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/webhooks/shopify/products, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/webhooks/shopify/customers, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/webhooks/shopify/orders, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCustomersController {/api/v1/customers}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers, POST} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/stats, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/phone/:phone, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/:id/profile, PATCH} route[39m[38;5;3m +2ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/customers/sync, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mOrdersController {/api/v1/orders}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/orders, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/orders, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/orders/:id, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/orders/:id/retry, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/orders/sync/range, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mDiscountsController {/api/v1/discounts}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/discounts, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/discounts, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/discounts/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/discounts/code/:code, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/discounts/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mReferralsController {/api/v1/referrals}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals/my, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals/:id/commission, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals/credit-bulk, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals/my/stats, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/referrals/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCommissionRulesController {/api/v1/commission-rules}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/commission-rules, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/commission-rules, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/commission-rules/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/commission-rules/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/commission-rules/:id, DELETE} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mAdminController {/api/v1/admin}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/users, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/users, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/stylists, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/stylists/:id/status, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/stylists/:id/referrals, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/stylists/:id/level, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/salons, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/salons, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/salons/:id/level, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/referrals, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/referrals/credit-bulk, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/referrals/:id/commission, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/admin/discounts/:id/status, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPartnerController {/api/v1/partner}:[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/dashboard, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/salons/:id, GET} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/salons/:id/stylists, POST} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/profile, GET} route[39m[38;5;3m +1ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/profile, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/v1/partner/salons/:id, PATCH} route[39m[38;5;3m +0ms[39m
+[32m[Nest] 96345  - [39m02/12/2026, 10:53:56 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +6ms[39m
+
+🚀 Hair Originals Backend is running!
+📍 Server:    http://localhost:3000
+📚 Swagger:   http://localhost:3000/api/docs
+🔑 Health:    http://localhost:3000/health
+  
+[2J[3J[H[[90m10:57:22 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m49[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m49[0m                     ownerName: salon.ownerName,
+[7m  [0m [91m                                     ~~~~~~~~~[0m
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m50[0m:[93m39[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m50[0m                     ownerPhone: salon.ownerPhone,
+[7m  [0m [91m                                      ~~~~~~~~~~[0m
+
+[96msrc/modules/salons/salons.service.ts[0m:[93m56[0m:[93m22[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'ownerPhone' does not exist in type 'FindOptionsWhere<Salon> | FindOptionsWhere<Salon>[]'.
+
+[7m56[0m             where: { ownerPhone, isActive: true },
+[7m  [0m [91m                     ~~~~~~~~~~[0m
+
+  [96mnode_modules/typeorm/find-options/FindOneOptions.d.ts[0m:[93m23[0m:[93m5[0m
+    [7m23[0m     where?: FindOptionsWhere<Entity>[] | FindOptionsWhere<Entity>;
+    [7m  [0m [96m    ~~~~~[0m
+    The expected type comes from property 'where' which is declared here on type 'FindOneOptions<Salon>'
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:57:22 PM[0m] Found 8 errors. Watching for file changes.
+
+[2J[3J[H[[90m10:57:42 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m49[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m49[0m                     ownerName: salon.ownerName,
+[7m  [0m [91m                                     ~~~~~~~~~[0m
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m50[0m:[93m39[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m50[0m                     ownerPhone: salon.ownerPhone,
+[7m  [0m [91m                                      ~~~~~~~~~~[0m
+
+[96msrc/modules/salons/salons.service.ts[0m:[93m57[0m:[93m22[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'ownerPhone' does not exist in type 'FindOptionsWhere<Salon> | FindOptionsWhere<Salon>[]'.
+
+[7m57[0m             where: { ownerPhone, isActive: true },
+[7m  [0m [91m                     ~~~~~~~~~~[0m
+
+  [96mnode_modules/typeorm/find-options/FindOneOptions.d.ts[0m:[93m23[0m:[93m5[0m
+    [7m23[0m     where?: FindOptionsWhere<Entity>[] | FindOptionsWhere<Entity>;
+    [7m  [0m [96m    ~~~~~[0m
+    The expected type comes from property 'where' which is declared here on type 'FindOneOptions<Salon>'
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:57:42 PM[0m] Found 8 errors. Watching for file changes.
+
+[2J[3J[H[[90m10:57:43 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m49[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m49[0m                     ownerName: salon.ownerName,
+[7m  [0m [91m                                     ~~~~~~~~~[0m
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m50[0m:[93m39[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m50[0m                     ownerPhone: salon.ownerPhone,
+[7m  [0m [91m                                      ~~~~~~~~~~[0m
+
+[96msrc/modules/salons/salons.service.ts[0m:[93m57[0m:[93m22[0m - [91merror[0m[90m TS2353: [0mObject literal may only specify known properties, and 'ownerPhone' does not exist in type 'FindOptionsWhere<Salon> | FindOptionsWhere<Salon>[]'.
+
+[7m57[0m             where: { ownerPhone, isActive: true },
+[7m  [0m [91m                     ~~~~~~~~~~[0m
+
+  [96mnode_modules/typeorm/find-options/FindOneOptions.d.ts[0m:[93m23[0m:[93m5[0m
+    [7m23[0m     where?: FindOptionsWhere<Entity>[] | FindOptionsWhere<Entity>;
+    [7m  [0m [96m    ~~~~~[0m
+    The expected type comes from property 'where' which is declared here on type 'FindOneOptions<Salon>'
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:57:44 PM[0m] Found 8 errors. Watching for file changes.
+
+[2J[3J[H[[90m10:57:47 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m49[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m49[0m                     ownerName: salon.ownerName,
+[7m  [0m [91m                                     ~~~~~~~~~[0m
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m50[0m:[93m39[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m50[0m                     ownerPhone: salon.ownerPhone,
+[7m  [0m [91m                                      ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:57:48 PM[0m] Found 7 errors. Watching for file changes.
+
+[2J[3J[H[[90m10:57:49 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m49[0m:[93m38[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m49[0m                     ownerName: salon.ownerName,
+[7m  [0m [91m                                     ~~~~~~~~~[0m
+
+[96msrc/modules/profile/profile.service.ts[0m:[93m50[0m:[93m39[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m50[0m                     ownerPhone: salon.ownerPhone,
+[7m  [0m [91m                                      ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:57:49 PM[0m] Found 7 errors. Watching for file changes.
+
+[2J[3J[H[[90m10:58:00 PM[0m] File change detected. Starting incremental compilation...
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m27[0m:[93m76[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m27[0m         console.log(`Processing salon: ${salon.name} (Owner Phone: ${salon.ownerPhone})`);
+[7m  [0m [91m                                                                           ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m30[0m:[93m68[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m30[0m         let owner = await userRepo.findOne({ where: { phone: salon.ownerPhone } });
+[7m  [0m [91m                                                                   ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m33[0m:[93m65[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m33[0m             console.log(`Owner user not found for phone ${salon.ownerPhone}. Creating...`);
+[7m  [0m [91m                                                                ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m36[0m:[93m30[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerPhone' does not exist on type 'Salon'.
+
+[7m36[0m                 phone: salon.ownerPhone,
+[7m  [0m [91m                             ~~~~~~~~~~[0m
+
+[96msrc/scripts/link_salon_owners.ts[0m:[93m37[0m:[93m29[0m - [91merror[0m[90m TS2339: [0mProperty 'ownerName' does not exist on type 'Salon'.
+
+[7m37[0m                 name: salon.ownerName,
+[7m  [0m [91m                            ~~~~~~~~~[0m
+
+[[90m10:58:00 PM[0m] Found 5 errors. Watching for file changes.
+

@@ -11,6 +11,7 @@ import {
   shopifyConfig,
   leadsquaredConfig,
   twilioConfig,
+  awsConfig,
 } from './config';
 
 // Modules
@@ -23,13 +24,18 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { SalonsModule } from './modules/salons/salons.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { PartnerModule } from './modules/partner/partner.module';
+import { FieldForceModule } from './modules/field-force/field-force.module';
+import { LeadsModule } from './modules/leads/leads.module';
 
 @Module({
   imports: [
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, redisConfig, jwtConfig, shopifyConfig, leadsquaredConfig, twilioConfig],
+      load: [databaseConfig, redisConfig, jwtConfig, shopifyConfig, leadsquaredConfig, twilioConfig, awsConfig],
       envFilePath: ['.env', '.env.local'],
     }),
 
@@ -74,7 +80,11 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
     OrdersModule,
     DiscountsModule,
     ReferralsModule,
+    SalonsModule,
+    AdminModule,
+    PartnerModule,
+    FieldForceModule,
+    LeadsModule,
   ],
 })
 export class AppModule { }
-

@@ -1,6 +1,7 @@
 import { IsEmail, IsString, IsOptional, IsEnum } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../enums/user-role.enum';
+import { Level } from '../../../common/enums/level.enum';
 
 export class CreateUserDto {
     @ApiPropertyOptional()
@@ -31,4 +32,8 @@ export class CreateUserDto {
     @IsString()
     @IsOptional()
     reportsToId?: string;
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    salonId?: string;
 }

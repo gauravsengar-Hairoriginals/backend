@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DiscountCode, DiscountType, DiscountStatus } from './entities/discount-code.entity';
+import { PricingRule } from './entities/pricing-rule.entity';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { CustomersService } from '../customers/customers.service';
 import { CustomerScope } from '../customers/dto/create-customer.dto';
@@ -22,17 +23,45 @@ export class DiscountsService {
     constructor(
         @InjectRepository(DiscountCode)
         private readonly discountRepository: Repository<DiscountCode>,
+        @InjectRepository(PricingRule)
+        private readonly pricingRuleRepository: Repository<PricingRule>,
         private readonly customersService: CustomersService,
         private readonly shopifyService: ShopifyService,
     ) { }
 
-    /**
-     * Generate a unique discount code
-     */
-    private generateCode(prefix: string = 'HO'): string {
-        const random = randomBytes(4).toString('hex').toUpperCase();
-        return `${prefix}-${random}`;
+    async getOrFetchPricingRule(shopifyPriceRuleId: string): Promise<PricingRule> {
+        let rule = await this.pricingRuleRepository.findOne({ where: { shopifyPriceRuleId } });
+
+        if (!rule) {
+            this.logger.log(`Fetching price rule ${shopifyPriceRuleId} from Shopify...`);
+            try {
+                const shopifyRule = await this.shopifyService.getPriceRule(shopifyPriceRuleId);
+
+                const newRule = new PricingRule();
+                newRule.shopifyPriceRuleId = shopifyRule.id.toString();
+                newRule.title = shopifyRule.title;
+                newRule.valueType = shopifyRule.value_type;
+                newRule.value = Math.abs(parseFloat(shopifyRule.value));
+                newRule.minOrderAmount = shopifyRule.prerequisite_subtotal_range ?
+                    parseFloat(shopifyRule.prerequisite_subtotal_range.greater_than_or_equal_to) : null;
+                newRule.startsAt = new Date(shopifyRule.starts_at);
+                newRule.endsAt = shopifyRule.ends_at ? new Date(shopifyRule.ends_at) : null;
+                newRule.usageLimit = shopifyRule.usage_limit;
+
+                rule = this.pricingRuleRepository.create(newRule);
+
+                await this.pricingRuleRepository.save(rule);
+                this.logger.log(`Cached pricing rule ${shopifyRule.title} locally`);
+            } catch (error) {
+                this.logger.error(`Failed to fetch/cache pricing rule ${shopifyPriceRuleId}`, error);
+                throw error;
+            }
+        }
+
+        return rule;
     }
+
+
 
     /**
      * Create a discount coupon for a customer
@@ -48,6 +77,9 @@ export class DiscountsService {
             // Create customer locally and in Shopify (GLOBAL scope)
             customer = await this.customersService.create({
                 phone: dto.customerPhone,
+                firstName: dto.firstName,
+                lastName: dto.lastName,
+                address: dto.address,
                 scope: CustomerScope.GLOBAL, // Creates in both HO-Backend and Shopify
             });
 
@@ -59,39 +91,50 @@ export class DiscountsService {
             this.logger.warn(`Customer ${customer.id} has no Shopify ID, discount will apply to all customers`);
         }
 
-        // Generate unique code
-        let code = this.generateCode();
-        let attempts = 0;
-        while (await this.discountRepository.findOne({ where: { code } })) {
-            code = this.generateCode();
-            attempts++;
-            if (attempts > 10) {
-                throw new BadRequestException('Failed to generate unique code');
-            }
+        // Use customer phone as the code
+        const code = dto.customerPhone;
+
+        // Check for duplicate code
+        const existingDiscount = await this.discountRepository.findOne({ where: { code } });
+        if (existingDiscount) {
+            throw new BadRequestException(`Discount code for phone number ${code} already exists`);
         }
 
         const startsAt = new Date();
         const expiresAt = new Date(startsAt.getTime() + dto.validityDays * 24 * 60 * 60 * 1000);
 
         // Create in Shopify first
-        let shopifyPriceRuleId: string | undefined;
+        let shopifyPriceRuleId: string | undefined = this.shopifyService.getConfig('priceRuleId');
         let shopifyDiscountCodeId: string | undefined;
+        let pricingRule: PricingRule | null = null;
+        let value = dto.value;
+        let type = dto.type;
 
         try {
-            // Create price rule in Shopify
-            const priceRule = await this.shopifyService.createPriceRule({
-                title: `Customer Discount - ${customer.phone} - ${code}`,
-                type: dto.type === DiscountType.PERCENTAGE ? 'percentage' : 'fixed_amount',
-                value: dto.value,
-                customerShopifyId: customer.shopifyId || undefined,
-                productId: dto.shopifyProductId,
-                validityDays: dto.validityDays,
-                usageLimit: dto.usageLimit || 1,
-                oncePerCustomer: dto.oncePerCustomer ?? true,
-                minimumAmount: dto.minimumAmount,
-            });
+            if (shopifyPriceRuleId) {
+                // Use existing price rule from config and cache it locally
+                this.logger.log(`Using existing Shopify Price Rule ID: ${shopifyPriceRuleId}`);
+                pricingRule = await this.getOrFetchPricingRule(shopifyPriceRuleId);
 
-            shopifyPriceRuleId = priceRule.id.toString();
+                // Override defaults with values from the pricing rule
+                value = pricingRule.value;
+                type = pricingRule.valueType === 'percentage' ? DiscountType.PERCENTAGE : DiscountType.FIXED_AMOUNT;
+
+            } else {
+                // Create new price rule in Shopify
+                const priceRule = await this.shopifyService.createPriceRule({
+                    title: `Customer Discount - ${customer.phone} - ${code}`,
+                    type: dto.type === DiscountType.PERCENTAGE ? 'percentage' : 'fixed_amount',
+                    value: dto.value,
+                    customerShopifyId: customer.shopifyId || undefined,
+                    productId: dto.shopifyProductId,
+                    validityDays: dto.validityDays,
+                    usageLimit: dto.usageLimit || 1,
+                    oncePerCustomer: dto.oncePerCustomer ?? true,
+                    minimumAmount: dto.minimumAmount,
+                });
+                shopifyPriceRuleId = priceRule.id.toString();
+            }
 
             // Create discount code in Shopify
             const discountCode = await this.shopifyService.createDiscountCode(
@@ -109,18 +152,19 @@ export class DiscountsService {
         // Create local record
         const discount = this.discountRepository.create({
             code,
-            type: dto.type,
-            value: dto.value,
+            type,
+            value,
             customerId: customer.id,
             customerPhone: dto.customerPhone,
             shopifyPriceRuleId,
+            pricingRuleId: pricingRule?.id,
             shopifyDiscountCodeId,
             shopifyProductId: dto.shopifyProductId,
             shopifyVariantId: dto.shopifyVariantId,
-            usageLimit: dto.usageLimit || 1,
+            usageLimit: pricingRule?.usageLimit || dto.usageLimit || 1,
             usageCount: 0,
             oncePerCustomer: dto.oncePerCustomer ?? true,
-            minimumAmount: dto.minimumAmount,
+            minimumAmount: pricingRule?.minOrderAmount || dto.minimumAmount,
             startsAt,
             expiresAt,
             validityDays: dto.validityDays,
@@ -198,5 +242,29 @@ export class DiscountsService {
         await this.discountRepository.save(discount);
 
         return discount;
+    }
+
+    async updateStatus(id: string, status: DiscountStatus): Promise<DiscountCode> {
+        const discount = await this.findById(id);
+
+        // If disabling, try to remove from Shopify
+        if (status === DiscountStatus.DISABLED && discount.status !== DiscountStatus.DISABLED) {
+            if (discount.shopifyPriceRuleId) {
+                try {
+                    await this.shopifyService.deletePriceRule(discount.shopifyPriceRuleId);
+                } catch (error) {
+                    this.logger.warn(`Failed to delete price rule in Shopify: ${error}`);
+                }
+            }
+        }
+
+        // If enabling, we might need to recreate in Shopify, but for now just update status locally
+        // Re-enabling usually requires creating a new rule in Shopify if it was deleted.
+        // For simplicity, we assume this is just a local soft-toggle or the user handles Shopify manually if needed,
+        // BUT ideally we should handle Shopify sync. 
+        // Given complexity, let's stick to local status update for filtering, as Shopify rules might have been deleted permanently.
+
+        discount.status = status;
+        return this.discountRepository.save(discount);
     }
 }
