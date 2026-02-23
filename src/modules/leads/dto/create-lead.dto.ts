@@ -75,6 +75,37 @@ export class CreateLeadDto {
     @IsObject()
     @IsOptional()
     preferredProductOptions?: Record<string, Record<string, string>>;
+
+    @ApiPropertyOptional()
+    @IsBoolean()
+    @IsOptional()
+    appointmentBooked?: boolean;
+
+    @ApiPropertyOptional({ example: '2026-03-01' })
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @ValidateIf(o => o.bookedDate != null)
+    @IsDateString()
+    @IsOptional()
+    bookedDate?: string;
+
+    @ApiPropertyOptional()
+    @IsBoolean()
+    @IsOptional()
+    scheduled?: boolean;
+
+    @ApiPropertyOptional({ example: '2026-03-01' })
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @ValidateIf(o => o.selectedDate != null)
+    @IsDateString()
+    @IsOptional()
+    selectedDate?: string;
+
+    @ApiPropertyOptional({ example: '2026-03-01' })
+    @Transform(({ value }) => value === '' ? undefined : value)
+    @ValidateIf(o => o.nextActionDate != null)
+    @IsDateString()
+    @IsOptional()
+    nextActionDate?: string;
 }
 
 // ── Update Lead Record (caller tracking fields) ───────────────────────────────

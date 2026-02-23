@@ -77,6 +77,11 @@ export class LeadsService {
                 preferredProducts: dto.preferredProducts,
                 preferredExperienceCenter: dto.preferredExperienceCenter,
                 preferredProductOptions: dto.preferredProductOptions,
+                appointmentBooked: dto.appointmentBooked,
+                bookedDate: dto.bookedDate,
+                scheduled: dto.scheduled,
+                selectedDate: dto.selectedDate,
+                nextActionDate: dto.nextActionDate,
                 status: LeadStatus.NEW,
             });
 
