@@ -14,27 +14,29 @@ import { User } from '../../users/entities/user.entity';
 export enum LeadStatus {
     NEW = 'new',
     CONTACTED = 'contacted',
-    FOLLOW_UP = 'follow_up',
-    CONVERTED = 'converted',
-    NOT_INTERESTED = 'not_interested',
+    CONVERTED_EC = 'converted:Marked to EC',
+    CONVERTED_HT = 'converted:Marked to HT',
+    CONVERTED_VC = 'converted:Marked to VC',
+    DROPPED = 'dropped'
 }
 
 export const CALL_STATUS_OPTIONS = [
-    'RNR',              // No response
-    'Disconnect',
+    'RNR/Disconnect/Busy',
     'Requested callback',
-    'Not Interested',
+    'Interested (NotSure)',
     'Interested',
-    'Not reachable',
-    'Busy',
-    'Switch off',
+    'Wrong Number'
 ] as const;
+
 export type CallStatus = typeof CALL_STATUS_OPTIONS[number];
 
 export const TIME_SLOT_OPTIONS = [
-    'Morning 10am–1pm',
-    'Afternoon 1pm–4pm',
-    'Evening 4pm–7pm',
+    '8am–10am',
+    '10am–12pm',
+    '12pm–2pm',
+    '2pm–4pm',
+    '4pm–6pm',
+    '6pm–8pm',
 ] as const;
 export type TimeSlot = typeof TIME_SLOT_OPTIONS[number];
 
@@ -86,15 +88,9 @@ export class LeadRecord {
     @Column({ name: 'converted_at', type: 'timestamp', nullable: true })
     convertedAt: Date;
 
-    // ── Scheduling ──────────────────────────────────────────────────────
-    @Column({ type: 'boolean', nullable: true })
-    scheduled: boolean;
-
-    @Column({ name: 'selected_date', type: 'date', nullable: true })
-    selectedDate: string;
-
-    @Column({ name: 'time_slot', nullable: true })
-    timeSlot: string;
+    // True if this customer had a prior lead record when this lead was created
+    @Column({ name: 'is_revisit', type: 'boolean', default: false })
+    isRevisit: boolean;
 
     // ── Call Attempts ───────────────────────────────────────────────────
     @Index()
@@ -123,7 +119,7 @@ export class LeadRecord {
     @Column({ name: 'preferred_experience_center', nullable: true })
     preferredExperienceCenter: string;
 
-    @Column({ name: 'next_action_date', type: 'date', nullable: true })
+    @Column({ name: 'next_action_date', type: 'timestamp', nullable: true })
     nextActionDate: string;
 
     @Column({ name: 'preferred_products', type: 'simple-array', nullable: true })

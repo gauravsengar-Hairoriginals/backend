@@ -82,6 +82,14 @@ export class LeadsController {
         return this.leadsService.convertLead(id);
     }
 
+    // ── Get lead history ──────────────────────────────────────────────────
+    @Get(':id/history')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    getHistory(@Param('id', ParseUUIDPipe) id: string) {
+        return this.leadsService.getHistory(id);
+    }
+
     // ── Admin: delete single lead record ──────────────────────────────────────
     @Delete(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)

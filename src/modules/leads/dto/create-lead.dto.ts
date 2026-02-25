@@ -10,7 +10,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { CALL_STATUS_OPTIONS, TIME_SLOT_OPTIONS } from '../entities/lead-record.entity';
+import { CALL_STATUS_OPTIONS } from '../entities/lead-record.entity';
 
 // ── Create ────────────────────────────────────────────────────────────────────
 export class CreateLeadDto {
@@ -88,18 +88,6 @@ export class CreateLeadDto {
     @IsOptional()
     bookedDate?: string;
 
-    @ApiPropertyOptional()
-    @IsBoolean()
-    @IsOptional()
-    scheduled?: boolean;
-
-    @ApiPropertyOptional({ example: '2026-03-01' })
-    @Transform(({ value }) => value === '' ? undefined : value)
-    @ValidateIf(o => o.selectedDate != null)
-    @IsDateString()
-    @IsOptional()
-    selectedDate?: string;
-
     @ApiPropertyOptional({ example: '2026-03-01' })
     @Transform(({ value }) => value === '' ? undefined : value)
     @ValidateIf(o => o.nextActionDate != null)
@@ -128,13 +116,6 @@ export class UpdateLeadRecordDto {
     @IsIn(CALL_STATUS_OPTIONS) @IsOptional() call3?: string;
     @IsString() @IsOptional() remarks?: string;
 
-    // Scheduling
-    @IsBoolean() @IsOptional() scheduled?: boolean;
-    @Transform(({ value }) => value === '' ? undefined : value)
-    @ValidateIf(o => o.selectedDate != null)
-    @IsDateString() @IsOptional() selectedDate?: string;
-    @IsIn(TIME_SLOT_OPTIONS) @IsOptional() timeSlot?: string;
-
     // Appointment
     @IsBoolean() @IsOptional() appointmentBooked?: boolean;
     @Transform(({ value }) => value === '' ? undefined : value)
@@ -150,7 +131,7 @@ export class UpdateLeadRecordDto {
     @IsOptional() preferredProductOptions?: Record<string, Record<string, string>>;
 
     // Status
-    @IsIn(['new', 'contacted', 'follow_up', 'converted', 'not_interested'])
+    @IsIn(['new', 'contacted', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC', 'dropped'])
     @IsOptional()
     status?: string;
 }

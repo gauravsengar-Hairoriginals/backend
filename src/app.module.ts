@@ -29,6 +29,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { PartnerModule } from './modules/partner/partner.module';
 import { FieldForceModule } from './modules/field-force/field-force.module';
 import { LeadsModule } from './modules/leads/leads.module';
+import { CallLogsModule } from './modules/call-logs/call-logs.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { LeadsModule } from './modules/leads/leads.module';
     PartnerModule,
     FieldForceModule,
     LeadsModule,
+    CallLogsModule,
   ],
 })
 export class AppModule { }

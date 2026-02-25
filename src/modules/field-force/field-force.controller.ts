@@ -210,4 +210,18 @@ export class FieldForceController {
             limit: limit ? parseInt(limit, 10) : undefined,
         });
     }
+
+    @Post('salons/:id/stylists/:stylistId/referrals')
+    @ApiOperation({ summary: 'Create a referral on behalf of a stylist (field agent submits for a stylist)' })
+    @ApiResponse({ status: 201, description: 'Referral created under the stylist account' })
+    async createReferralOnBehalfOfStylist(
+        @Param('id') salonId: string,
+        @Param('stylistId') stylistId: string,
+        @Body() dto: import('../referrals/dto/create-referral.dto').CreateReferralDto,
+    ) {
+        // Fetch the stylist so the referral is attributed to them
+        const stylist = await this.usersService.findById(stylistId);
+        if (!stylist) throw new BadRequestException('Stylist not found');
+        return this.referralsService.create(dto, stylist);
+    }
 }
