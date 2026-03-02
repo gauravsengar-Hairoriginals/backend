@@ -73,8 +73,11 @@ export class CallLogsService {
         callerNumber: string,
         params: Record<string, string>,
     ): Promise<void> {
+        // Normalize the phone number to match DB format (+91XXXXXXXXXX)
+        const normalizedPhone = this.normalizePhone(callerNumber);
+
         // 1. Find or create the customer using CustomersService (supports scope: local/global)
-        let customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
+        let customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
 
         if (!customer) {
             try {
@@ -85,12 +88,12 @@ export class CallLogsService {
                     tags: ['lead', 'inbound-ivr'],
                     scope: CustomerScope.LOCAL,
                 });
-                this.logger.log(`Created new customer ${customer.id} for inbound number ${callerNumber}`);
+                this.logger.log(`Created new customer ${customer.id} for inbound number ${normalizedPhone}`);
             } catch (err: any) {
-                // ConflictException means customer was created between our check and create
-                customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
+                // ConflictException or unique constraint — customer exists, find with normalized phone
+                customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
                 if (!customer) throw err;
-                this.logger.log(`Customer ${customer.id} found after conflict for ${callerNumber}`);
+                this.logger.log(`Customer ${customer.id} found after conflict for ${normalizedPhone}`);
             }
         } else {
             // Tag the customer as inbound-ivr if not already
@@ -173,6 +176,14 @@ export class CallLogsService {
     private isMissed(params: Record<string, string>): boolean {
         const action = params['call_action'] ?? params['callAction'] ?? '';
         return action.toLowerCase().includes('missed');
+    }
+
+    private normalizePhone(phone: string): string {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 10) return `+91${digits}`;
+        if (digits.length === 11 && digits.startsWith('0')) return `+91${digits.substring(1)}`;
+        if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+        return `+${digits}`;
     }
 
     // ── List call logs for a lead (for future admin view) ─────────────────────
