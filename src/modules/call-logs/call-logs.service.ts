@@ -36,14 +36,17 @@ export class CallLogsService {
     }
 
     // ── Callback: qkonnect posts result, we find & update the pending record ───
-    async handleCallback(params: Record<string, string>): Promise<{ success: boolean }> {
+    async handleCallback(params: Record<string, string>): Promise<{ success: boolean; error?: string }> {
         // qkonnect may use different casing — normalise common variants
         const agentNumber = params['agent_number'] ?? params['agentNumber'] ?? '';
         const callerNumber = params['caller_number'] ?? params['callerNumber'] ?? '';
 
+        this.logger.log(`[CALLBACK] Received callback — agent=${agentNumber} caller=${callerNumber}`);
+        this.logger.log(`[CALLBACK] Full params: ${JSON.stringify(params)}`);
+
         if (!agentNumber || !callerNumber) {
-            this.logger.warn('Callback missing agent_number or caller_number', params);
-            return { success: false };
+            this.logger.warn('[CALLBACK] ❌ Missing agent_number or caller_number — aborting');
+            return { success: false, error: 'Missing agent_number or caller_number' };
         }
 
         // Find the most recent pending record for this agent+caller pair
@@ -54,16 +57,20 @@ export class CallLogsService {
 
         if (!record) {
             // ── Inbound IVR fallback ──────────────────────────────────────────
-            // No pending outbound record found → this is an inbound call.
-            // Create: Customer (if new) → LeadRecord (Inbound IVR) → CallLog.
-            this.logger.log(`Inbound IVR callback: no pending log for agent=${agentNumber} caller=${callerNumber} — creating lead`);
-            await this.createInboundLead(agentNumber, callerNumber, params);
-            return { success: true };
+            this.logger.log(`[CALLBACK] No pending call log found → treating as Inbound IVR`);
+            try {
+                await this.createInboundLead(agentNumber, callerNumber, params);
+                this.logger.log(`[CALLBACK] ✅ Inbound IVR lead created successfully`);
+                return { success: true };
+            } catch (err: any) {
+                this.logger.error(`[CALLBACK] ❌ Inbound IVR lead creation FAILED: ${err.message}`, err.stack);
+                return { success: false, error: `Inbound lead creation failed: ${err.message}` };
+            }
         }
 
         // ── Update existing pending record ────────────────────────────────────
         await this.applyCallbackFields(record.id, params);
-        this.logger.log(`Call log ${record.id} updated → ${this.isMissed(params) ? 'missed' : 'completed'}`);
+        this.logger.log(`[CALLBACK] ✅ Call log ${record.id} updated → ${this.isMissed(params) ? 'missed' : 'completed'}`);
         return { success: true };
     }
 
@@ -75,11 +82,23 @@ export class CallLogsService {
     ): Promise<void> {
         // Normalize the phone number to match DB format (+91XXXXXXXXXX)
         const normalizedPhone = this.normalizePhone(callerNumber);
+        this.logger.log(`[INBOUND] Step 1: Normalizing phone — raw="${callerNumber}" → normalized="${normalizedPhone}"`);
 
-        // 1. Find or create the customer using CustomersService (supports scope: local/global)
-        let customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
+        // 1. Find or create the customer
+        let customer: Customer | null = null;
+
+        // Try finding with normalized phone
+        customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
+        this.logger.log(`[INBOUND] Step 2: Lookup by normalized phone "${normalizedPhone}" → ${customer ? `FOUND id=${customer.id}` : 'NOT FOUND'}`);
+
+        // Also try with raw phone if normalized didn't match
+        if (!customer && normalizedPhone !== callerNumber) {
+            customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
+            this.logger.log(`[INBOUND] Step 2b: Lookup by raw phone "${callerNumber}" → ${customer ? `FOUND id=${customer.id}` : 'NOT FOUND'}`);
+        }
 
         if (!customer) {
+            this.logger.log(`[INBOUND] Step 3: Creating new customer via CustomersService (scope=LOCAL)…`);
             try {
                 customer = await this.customersService.create({
                     phone: callerNumber,
@@ -88,25 +107,49 @@ export class CallLogsService {
                     tags: ['lead', 'inbound-ivr'],
                     scope: CustomerScope.LOCAL,
                 });
-                this.logger.log(`Created new customer ${customer.id} for inbound number ${normalizedPhone}`);
+                this.logger.log(`[INBOUND] Step 3: ✅ Created customer id=${customer.id} phone=${customer.phone}`);
             } catch (err: any) {
-                // ConflictException or unique constraint — customer exists, find with normalized phone
+                this.logger.error(`[INBOUND] Step 3: ❌ CustomersService.create() failed: ${err.message}`);
+                this.logger.error(`[INBOUND] Step 3: Error type: ${err.constructor?.name}, status: ${err.status}`);
+
+                // Try to recover — maybe customer was created by another concurrent request
+                this.logger.log(`[INBOUND] Step 3: Attempting recovery — searching DB again…`);
                 customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
-                if (!customer) throw err;
-                this.logger.log(`Customer ${customer.id} found after conflict for ${normalizedPhone}`);
+                if (!customer) {
+                    customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
+                }
+                if (!customer) {
+                    // Last resort: use LIKE search
+                    const digits = callerNumber.replace(/\D/g, '');
+                    const last10 = digits.slice(-10);
+                    this.logger.log(`[INBOUND] Step 3: Last resort — LIKE search for %${last10}`);
+                    customer = await this.customerRepo
+                        .createQueryBuilder('c')
+                        .where('c.phone LIKE :phone', { phone: `%${last10}` })
+                        .getOne();
+                    this.logger.log(`[INBOUND] Step 3: LIKE search → ${customer ? `FOUND id=${customer.id} phone=${customer.phone}` : 'NOT FOUND'}`);
+                }
+                if (!customer) {
+                    this.logger.error(`[INBOUND] Step 3: ❌ FATAL — Cannot find or create customer for phone ${callerNumber}. Aborting.`);
+                    throw new Error(`Cannot find or create customer for phone ${callerNumber}: ${err.message}`);
+                }
+                this.logger.log(`[INBOUND] Step 3: ✅ Recovery successful — found customer id=${customer.id}`);
             }
         } else {
             // Tag the customer as inbound-ivr if not already
             if (!customer.tags?.includes('inbound-ivr')) {
                 customer.tags = [...(customer.tags ?? []), 'inbound-ivr'];
                 await this.customerRepo.save(customer);
+                this.logger.log(`[INBOUND] Step 2: Tagged existing customer ${customer.id} with inbound-ivr`);
             }
         }
 
         // 2. Check for prior lead records (isRevisit flag)
         const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
+        this.logger.log(`[INBOUND] Step 4: Prior lead count for customer ${customer.id}: ${priorCount} (isRevisit=${priorCount > 0})`);
 
         // 3. Create the lead record
+        this.logger.log(`[INBOUND] Step 5: Creating LeadRecord — customerId=${customer.id}, source=Inbound IVR`);
         const lead = await this.leadRepo.save(
             this.leadRepo.create({
                 customerId: customer.id,
@@ -115,14 +158,15 @@ export class CallLogsService {
                 isRevisit: priorCount > 0,
             }),
         );
-        this.logger.log(`Created Inbound IVR lead ${lead.id} for customer ${customer.id}`);
+        this.logger.log(`[INBOUND] Step 5: ✅ Created lead id=${lead.id}`);
 
         // 4. Create the call log with callback data already filled in
+        this.logger.log(`[INBOUND] Step 6: Creating CallLog — leadId=${lead.id}`);
         const callAction = params['call_action'] ?? params['callAction'] ?? '';
         const parseDate = (v?: string) => (v ? new Date(v) : undefined);
         const parseNum = (v?: string) => (v != null ? parseInt(v, 10) : undefined);
 
-        await this.callLogRepo.save(
+        const callLog = await this.callLogRepo.save(
             this.callLogRepo.create({
                 leadId: lead.id,
                 customerId: customer.id,
@@ -145,6 +189,8 @@ export class CallLogsService {
                 callConferenceUid: params['call_conference_uid'] ?? params['callConferenceUid'],
             }),
         );
+        this.logger.log(`[INBOUND] Step 6: ✅ Created call log id=${callLog.id}, status=${callLog.status}`);
+        this.logger.log(`[INBOUND] ✅ COMPLETE — Lead=${lead.id} Customer=${customer.id} CallLog=${callLog.id}`);
     }
 
     // ── Private: apply callback fields to an existing call_log row ─────────────
