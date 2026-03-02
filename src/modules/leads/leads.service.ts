@@ -11,7 +11,9 @@ import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { LeadRecord, LeadStatus } from './entities/lead-record.entity';
 import { LeadHistory } from './entities/lead-history.entity';
-import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto } from './dto/create-lead.dto';
+import { LeadProduct } from './entities/lead-product.entity';
+import { LeadProductOption } from './entities/lead-product-option.entity';
+import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, CreateLeadProductDto } from './dto/create-lead.dto';
 import { normalizePhone } from '../../common/utils/phone.util';
 
 export interface LeadsQuery {
@@ -36,7 +38,6 @@ const TRACKED_LEAD_FIELDS: Array<{ dtoKey: keyof UpdateLeadRecordDto; label: str
     { dtoKey: 'status', label: 'Status', getter: l => l.status },
     { dtoKey: 'preferredExperienceCenter', label: 'Experience Center', getter: l => l.preferredExperienceCenter },
     { dtoKey: 'nextActionDate', label: 'Next Action Date', getter: l => l.nextActionDate },
-    { dtoKey: 'preferredProducts', label: 'Preferred Products', getter: l => l.preferredProducts },
 ];
 
 function stringify(val: any): string {
@@ -44,6 +45,33 @@ function stringify(val: any): string {
     if (Array.isArray(val)) return val.join(', ');
     if (typeof val === 'object') return JSON.stringify(val);
     return String(val);
+}
+
+/** Build a human-readable summary of lead products for history tracking */
+function summariseProducts(leadProducts: LeadProduct[]): string {
+    if (!leadProducts || leadProducts.length === 0) return '';
+    return leadProducts.map(lp => {
+        const opts = (lp.options ?? []).map(o => `${o.optionName}:${o.optionValue}`).join(', ');
+        return opts ? `${lp.productTitle} (${opts})` : lp.productTitle;
+    }).join('; ');
+}
+
+/** Create LeadProduct + LeadProductOption entities from DTO array (does not persist) */
+function buildLeadProducts(dtoProducts: CreateLeadProductDto[], leadRecordId: string): LeadProduct[] {
+    return dtoProducts.map(p => {
+        const lp = new LeadProduct();
+        lp.leadRecordId = leadRecordId;
+        lp.productId = p.productId ?? null as any;
+        lp.productTitle = p.productTitle;
+        lp.quantity = p.quantity ?? 1;
+        lp.options = (p.options ?? []).map(o => {
+            const opt = new LeadProductOption();
+            opt.optionName = o.name;
+            opt.optionValue = o.value;
+            return opt;
+        });
+        return lp;
+    });
 }
 
 @Injectable()
@@ -57,6 +85,8 @@ export class LeadsService {
         private readonly leadRecordRepo: Repository<LeadRecord>,
         @InjectRepository(LeadHistory)
         private readonly leadHistoryRepo: Repository<LeadHistory>,
+        @InjectRepository(LeadProduct)
+        private readonly leadProductRepo: Repository<LeadProduct>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly dataSource: DataSource,
@@ -101,9 +131,8 @@ export class LeadsService {
                 pageType: dto.pageType,
                 campaignId: dto.campaignId,
                 specificDetails: dto.specificDetails,
-                preferredProducts: dto.preferredProducts,
                 preferredExperienceCenter: dto.preferredExperienceCenter,
-                preferredProductOptions: dto.preferredProductOptions,
+                customerProductInterest: dto.customerProductInterest,
                 appointmentBooked: dto.appointmentBooked,
                 bookedDate: dto.bookedDate,
                 nextActionDate: dto.nextActionDate,
@@ -120,11 +149,18 @@ export class LeadsService {
             }
 
             const saved = await em.save(LeadRecord, leadRecord);
+
+            // Save products (Two-Layer)
+            if (dto.products && dto.products.length > 0) {
+                const leadProducts = buildLeadProducts(dto.products, saved.id);
+                await em.save(LeadProduct, leadProducts);
+            }
+
             this.logger.log(`Lead created: record=${saved.id} customer=${customer.id}`);
 
             return em.findOne(LeadRecord, {
                 where: { id: saved.id },
-                relations: ['customer', 'assignedTo'],
+                relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
             }) as Promise<LeadRecord>;
         });
     }
@@ -140,6 +176,8 @@ export class LeadsService {
             .createQueryBuilder('lr')
             .leftJoinAndSelect('lr.customer', 'customer')
             .leftJoinAndSelect('lr.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('lr.leadProducts', 'leadProducts')
+            .leftJoinAndSelect('leadProducts.options', 'productOptions')
             .orderBy('lr.createdAt', 'DESC')
             .skip((page - 1) * limit)
             .take(limit);
@@ -171,7 +209,7 @@ export class LeadsService {
     async update(id: string, dto: UpdateLeadRecordDto, requestingUser?: User): Promise<LeadRecord> {
         const lead = await this.leadRecordRepo.findOne({
             where: { id },
-            relations: ['customer'],
+            relations: ['customer', 'leadProducts', 'leadProducts.options'],
         });
         if (!lead) throw new NotFoundException('Lead not found');
 
@@ -216,6 +254,16 @@ export class LeadsService {
             }
         }
 
+        // Track product changes
+        if (dto.products !== undefined) {
+            const oldSummary = summariseProducts(lead.leadProducts ?? []);
+            const newProducts = buildLeadProducts(dto.products, id);
+            const newSummary = summariseProducts(newProducts);
+            if (oldSummary !== newSummary) {
+                historyEntries.push({ leadRecordId: id, fieldName: 'Products', oldValue: oldSummary, newValue: newSummary });
+            }
+        }
+
         // Apply who changed it
         if (requestingUser) {
             historyEntries.forEach(e => {
@@ -249,9 +297,8 @@ export class LeadsService {
         if (dto.specificDetails !== undefined) lead.specificDetails = dto.specificDetails;
         const RNR_VALUE = 'RNR/Disconnect/Busy';
         const scheduleOneHourLater = () => {
-            const nextHour = new Date();
-            nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0); // top of next hour
-            lead.nextActionDate = nextHour.toISOString();
+            const sixtyMinsLater = new Date(Date.now() + 60 * 60 * 1000);
+            lead.nextActionDate = sixtyMinsLater.toISOString();
         };
 
         if (dto.call1 !== undefined) {
@@ -275,11 +322,21 @@ export class LeadsService {
         if (dto.bookedDate !== undefined) lead.bookedDate = dto.bookedDate;
         if (dto.status !== undefined) lead.status = dto.status as LeadStatus;
         if (dto.preferredExperienceCenter !== undefined) lead.preferredExperienceCenter = dto.preferredExperienceCenter;
+        if (dto.customerProductInterest !== undefined) lead.customerProductInterest = dto.customerProductInterest;
         if (dto.nextActionDate) lead.nextActionDate = dto.nextActionDate; // only override if explicitly set (non-empty)
-        if (dto.preferredProducts !== undefined) lead.preferredProducts = dto.preferredProducts;
-        if (dto.preferredProductOptions !== undefined) lead.preferredProductOptions = dto.preferredProductOptions;
 
         const saved = await this.leadRecordRepo.save(lead);
+
+        // Upsert products: delete-and-recreate approach
+        if (dto.products !== undefined) {
+            // Delete existing products for this lead
+            await this.leadProductRepo.delete({ leadRecordId: id });
+            // Insert new products
+            if (dto.products.length > 0) {
+                const newProducts = buildLeadProducts(dto.products, id);
+                await this.leadProductRepo.save(newProducts);
+            }
+        }
 
         // Save all history diffs (non-blocking)
         if (historyEntries.length > 0) {
@@ -288,14 +345,14 @@ export class LeadsService {
 
         return this.leadRecordRepo.findOne({
             where: { id: saved.id },
-            relations: ['customer', 'assignedTo'],
+            relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
         }) as Promise<LeadRecord>;
     }
 
     // ── Get History (customer-wide: all leads for the same customer) ──────
     async getHistory(leadId: string): Promise<{
-        currentLead: { id: string; createdAt: Date; history: LeadHistory[] };
-        priorLeads: { id: string; createdAt: Date; history: LeadHistory[] }[];
+        currentLead: { id: string; createdAt: Date; status: string; history: LeadHistory[] };
+        priorLeads: { id: string; createdAt: Date; status: string; history: LeadHistory[] }[];
     }> {
         // 1. Find the requested lead to get its customerId
         const lead = await this.leadRecordRepo.findOne({ where: { id: leadId } });
@@ -305,7 +362,7 @@ export class LeadsService {
         const allLeads = await this.leadRecordRepo.find({
             where: { customerId: lead.customerId },
             order: { createdAt: 'ASC' },
-            select: ['id', 'createdAt'],
+            select: ['id', 'createdAt', 'status'],
         });
 
         // 3. Fetch ALL history entries for all those leads in one query
@@ -328,6 +385,7 @@ export class LeadsService {
         const currentLead = {
             id: lead.id,
             createdAt: lead.createdAt,
+            status: lead.status,
             history: historyByLead.get(lead.id) ?? [],
         };
 
@@ -336,6 +394,7 @@ export class LeadsService {
             .map(l => ({
                 id: l.id,
                 createdAt: l.createdAt,
+                status: l.status,
                 history: historyByLead.get(l.id) ?? [],
             }))
             .reverse(); // newest prior lead first
@@ -368,8 +427,45 @@ export class LeadsService {
 
         return this.leadRecordRepo.findOne({
             where: { id: savedAssign.id },
-            relations: ['customer', 'assignedTo'],
+            relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
         }) as Promise<LeadRecord>;
+    }
+
+    // ── Bulk Assign ───────────────────────────────────────────────────────
+    async bulkAssign(leadIds: string[], callerId: string): Promise<{ updated: number }> {
+        const caller = await this.userRepo.findOne({
+            where: { id: callerId, role: UserRole.LEAD_CALLER },
+        });
+        if (!caller) throw new NotFoundException('Lead caller not found');
+
+        const leads = await this.leadRecordRepo
+            .createQueryBuilder('lr')
+            .where('lr.id IN (:...ids)', { ids: leadIds })
+            .getMany();
+
+        if (leads.length === 0) throw new NotFoundException('No matching leads found');
+
+        const historyEntries: Partial<LeadHistory>[] = [];
+
+        for (const lead of leads) {
+            const oldAssignee = lead.assignedToName || '';
+            lead.assignedToId = caller.id;
+            lead.assignedToName = caller.name;
+            historyEntries.push({
+                leadRecordId: lead.id,
+                fieldName: 'Assigned To',
+                oldValue: oldAssignee,
+                newValue: caller.name,
+            });
+        }
+
+        await this.leadRecordRepo.save(leads);
+        if (historyEntries.length > 0) {
+            await this.leadHistoryRepo.save(historyEntries.map(e => this.leadHistoryRepo.create(e)));
+        }
+
+        this.logger.log(`Bulk assigned ${leads.length} leads to ${caller.name} (${caller.id})`);
+        return { updated: leads.length };
     }
 
     // ── Convert ───────────────────────────────────────────────────────────
@@ -402,7 +498,7 @@ export class LeadsService {
         this.logger.log(`Lead ${id} converted to customer ${customer.id}`);
         return this.leadRecordRepo.findOne({
             where: { id: savedConvert.id },
-            relations: ['customer', 'assignedTo'],
+            relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
         }) as Promise<LeadRecord>;
     }
 

@@ -6,10 +6,12 @@ import {
     UpdateDateColumn,
     Index,
     ManyToOne,
+    OneToMany,
     JoinColumn,
 } from 'typeorm';
 import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
+import { LeadProduct } from './lead-product.entity';
 
 export enum LeadStatus {
     NEW = 'new',
@@ -24,6 +26,7 @@ export const CALL_STATUS_OPTIONS = [
     'RNR/Disconnect/Busy',
     'Requested callback',
     'Interested (NotSure)',
+    'Not Interested',
     'Interested',
     'Wrong Number'
 ] as const;
@@ -119,15 +122,18 @@ export class LeadRecord {
     @Column({ name: 'preferred_experience_center', nullable: true })
     preferredExperienceCenter: string;
 
+    @Column({ name: 'customer_product_interest', type: 'text', nullable: true })
+    customerProductInterest: string;
+
     @Column({ name: 'next_action_date', type: 'timestamp', nullable: true })
     nextActionDate: string;
 
-    @Column({ name: 'preferred_products', type: 'simple-array', nullable: true })
-    preferredProducts: string[];
-
-    // { [productTitle]: { [optionName]: selectedValue } }
-    @Column({ name: 'preferred_product_options', type: 'jsonb', nullable: true })
-    preferredProductOptions: Record<string, Record<string, string>>;
+    // ── Products (Two-Layer Model) ──────────────────────────────────────
+    @OneToMany(() => LeadProduct, (lp) => lp.leadRecord, {
+        cascade: true,
+        eager: true,
+    })
+    leadProducts: LeadProduct[];
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

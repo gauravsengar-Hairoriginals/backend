@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { CallLog, CallLogStatus } from './entities/call-log.entity';
 import { InitiateCallDto } from './dto/initiate-call.dto';
 import { Customer } from '../customers/entities/customer.entity';
+import { CustomersService } from '../customers/customers.service';
+import { CustomerScope } from '../customers/dto/create-customer.dto';
 import { LeadRecord, LeadStatus } from '../leads/entities/lead-record.entity';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class CallLogsService {
         private readonly customerRepo: Repository<Customer>,
         @InjectRepository(LeadRecord)
         private readonly leadRepo: Repository<LeadRecord>,
+        private readonly customersService: CustomersService,
     ) { }
 
     // ── Initiate: create a pending record when agent starts a call ─────────────
@@ -70,21 +73,25 @@ export class CallLogsService {
         callerNumber: string,
         params: Record<string, string>,
     ): Promise<void> {
-        // 1. Find or create the customer by phone number
+        // 1. Find or create the customer using CustomersService (supports scope: local/global)
         let customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
 
         if (!customer) {
-            customer = await this.customerRepo.save(
-                this.customerRepo.create({
+            try {
+                customer = await this.customersService.create({
                     phone: callerNumber,
-                    name: 'Inbound Caller',
                     firstName: 'Inbound',
                     lastName: 'Caller',
                     tags: ['lead', 'inbound-ivr'],
-                    lastActivityPlatform: 'ivr',
-                }),
-            );
-            this.logger.log(`Created new customer ${customer.id} for inbound number ${callerNumber}`);
+                    scope: CustomerScope.LOCAL,
+                });
+                this.logger.log(`Created new customer ${customer.id} for inbound number ${callerNumber}`);
+            } catch (err: any) {
+                // ConflictException means customer was created between our check and create
+                customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
+                if (!customer) throw err;
+                this.logger.log(`Customer ${customer.id} found after conflict for ${callerNumber}`);
+            }
         } else {
             // Tag the customer as inbound-ivr if not already
             if (!customer.tags?.includes('inbound-ivr')) {

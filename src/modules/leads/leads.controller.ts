@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { LeadsService } from './leads.service';
-import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto } from './dto/create-lead.dto';
+import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, BulkAssignLeadDto } from './dto/create-lead.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -49,6 +49,14 @@ export class LeadsController {
         @CurrentUser() user?: User,
     ) {
         return this.leadsService.findAll({ page: +(page ?? 1), limit: +(limit ?? 20), search, status, assignedToId }, user);
+    }
+
+    // ── Admin: bulk assign leads to a caller ──────────────────────────────────
+    @Patch('bulk-assign')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    bulkAssign(@Body() dto: BulkAssignLeadDto) {
+        return this.leadsService.bulkAssign(dto.leadIds, dto.callerId);
     }
 
     // ── Admin: update a lead record's calling/tracking fields ─────────────────

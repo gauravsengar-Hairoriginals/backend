@@ -5,9 +5,13 @@ import { CallLogsService } from './call-logs.service';
 import { CallLog } from './entities/call-log.entity';
 import { Customer } from '../customers/entities/customer.entity';
 import { LeadRecord } from '../leads/entities/lead-record.entity';
+import { CustomersModule } from '../customers/customers.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([CallLog, Customer, LeadRecord])],
+    imports: [
+        TypeOrmModule.forFeature([CallLog, Customer, LeadRecord]),
+        CustomersModule,
+    ],
     controllers: [CallLogsController],
     providers: [CallLogsService],
     exports: [CallLogsService],

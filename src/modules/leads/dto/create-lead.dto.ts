@@ -6,11 +6,52 @@ import {
     IsIn,
     IsBoolean,
     IsDateString,
+    IsArray,
+    IsInt,
+    IsUUID,
+    Min,
+    ValidateNested,
     ValidateIf,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { CALL_STATUS_OPTIONS } from '../entities/lead-record.entity';
+
+// ── Nested DTOs for products ──────────────────────────────────────────────────
+
+export class LeadProductOptionDto {
+    @ApiProperty({ example: 'Length' })
+    @IsString()
+    name: string;
+
+    @ApiProperty({ example: '14 inches' })
+    @IsString()
+    value: string;
+}
+
+export class CreateLeadProductDto {
+    @ApiPropertyOptional({ example: 'uuid-of-product' })
+    @IsUUID()
+    @IsOptional()
+    productId?: string;
+
+    @ApiProperty({ example: 'Hair Extension' })
+    @IsString()
+    productTitle: string;
+
+    @ApiPropertyOptional({ example: 1 })
+    @IsInt()
+    @Min(1)
+    @IsOptional()
+    quantity?: number;
+
+    @ApiPropertyOptional({ type: [LeadProductOptionDto] })
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => LeadProductOptionDto)
+    @IsOptional()
+    options?: LeadProductOptionDto[];
+}
 
 // ── Create ────────────────────────────────────────────────────────────────────
 export class CreateLeadDto {
@@ -62,19 +103,22 @@ export class CreateLeadDto {
     @IsOptional()
     notes?: string;
 
-    @ApiPropertyOptional({ example: ['Hair Extension'] })
+    @ApiPropertyOptional({ type: [CreateLeadProductDto] })
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateLeadProductDto)
     @IsOptional()
-    preferredProducts?: string[];
+    products?: CreateLeadProductDto[];
 
     @ApiPropertyOptional({ example: 'Delhi HO' })
     @IsString()
     @IsOptional()
     preferredExperienceCenter?: string;
 
-    @ApiPropertyOptional()
-    @IsObject()
+    @ApiPropertyOptional({ example: 'Hair Extensions, Hair Toppers' })
+    @IsString()
     @IsOptional()
-    preferredProductOptions?: Record<string, Record<string, string>>;
+    customerProductInterest?: string;
 
     @ApiPropertyOptional()
     @IsBoolean()
@@ -124,11 +168,17 @@ export class UpdateLeadRecordDto {
 
     // Preferences
     @IsString() @IsOptional() preferredExperienceCenter?: string;
+    @IsString() @IsOptional() customerProductInterest?: string;
     @Transform(({ value }) => value === '' ? undefined : value)
     @ValidateIf(o => o.nextActionDate != null)
     @IsDateString() @IsOptional() nextActionDate?: string;
-    @IsOptional() preferredProducts?: string[];
-    @IsOptional() preferredProductOptions?: Record<string, Record<string, string>>;
+
+    // Products (Two-Layer)
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateLeadProductDto)
+    @IsOptional()
+    products?: CreateLeadProductDto[];
 
     // Status
     @IsIn(['new', 'contacted', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC', 'dropped'])
@@ -138,6 +188,18 @@ export class UpdateLeadRecordDto {
 
 // ── Assign ────────────────────────────────────────────────────────────────────
 export class AssignLeadDto {
+    @ApiProperty({ example: 'uuid-of-lead-caller' })
+    @IsString()
+    callerId: string;
+}
+
+// ── Bulk Assign ───────────────────────────────────────────────────────────────
+export class BulkAssignLeadDto {
+    @ApiProperty({ example: ['uuid-1', 'uuid-2'] })
+    @IsArray()
+    @IsString({ each: true })
+    leadIds: string[];
+
     @ApiProperty({ example: 'uuid-of-lead-caller' })
     @IsString()
     callerId: string;
