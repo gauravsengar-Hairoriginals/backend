@@ -44,18 +44,19 @@ export class PopinService {
     async handleWebhook(dto: PopinWebhookDto, rawBody: Record<string, any>): Promise<{ received: boolean; eventId?: string; duplicate?: boolean }> {
         // ── 1. Compute dedup key ──────────────────────────────────────────────
         const dedupKey = this.computeDedupKey(dto);
+        const phone = this.extractPhone(dto);
+        this.logger.log(`[POPIN] Step 1: Dedup key="${dedupKey}" | Phone extracted="${phone}"`);
 
         // ── 2. Check for duplicate ────────────────────────────────────────────
         const existing = await this.popinEventRepo.findOne({ where: { dedupKey } });
         if (existing) {
-            this.logger.log(`Duplicate event skipped: ${dto.event} key=${dedupKey}`);
+            this.logger.log(`[POPIN] Step 2: ⚠️ DUPLICATE — event already exists id=${existing.id}, skipping`);
             return { received: true, eventId: existing.id, duplicate: true };
         }
+        this.logger.log(`[POPIN] Step 2: ✅ No duplicate found — proceeding`);
 
-        // ── 3. Extract phone ──────────────────────────────────────────────────
-        const phone = this.extractPhone(dto);
-
-        // ── 4. Log raw event ──────────────────────────────────────────────────
+        // ── 3. Log raw event ──────────────────────────────────────────────────
+        this.logger.log(`[POPIN] Step 3: Saving raw event to popin_events table…`);
         const eventData: Partial<PopinEvent> = {
             event: dto.event,
             popinUserId: dto.user_id ?? undefined,
@@ -67,20 +68,23 @@ export class PopinService {
         };
         const popinEvent = this.popinEventRepo.create(eventData);
         const saved = await this.popinEventRepo.save(popinEvent);
-        this.logger.log(`Logged Popin event: ${dto.event} id=${saved.id} phone=${phone}`);
+        this.logger.log(`[POPIN] Step 3: ✅ Saved popin_event id=${saved.id}`);
 
-        // ── 5. Route to handler ───────────────────────────────────────────────
+        // ── 4. Check if this is a lead event ──────────────────────────────────
         if (!LEAD_EVENTS.has(dto.event)) {
-            this.logger.log(`Event ${dto.event} logged but not processed into a lead`);
+            this.logger.log(`[POPIN] Step 4: ℹ️ Event "${dto.event}" is NOT a lead event — logged only, no lead created`);
             return { received: true, eventId: saved.id };
         }
+        this.logger.log(`[POPIN] Step 4: ✅ Event "${dto.event}" IS a lead event — routing to handler…`);
 
+        // ── 5. Route to handler ───────────────────────────────────────────────
         try {
             await this.processEvent(saved, dto);
             saved.processed = true;
             await this.popinEventRepo.save(saved);
+            this.logger.log(`[POPIN] Step 5: ✅ Event processed successfully, marked as processed`);
         } catch (err: any) {
-            this.logger.error(`Failed to process event ${saved.id}: ${err.message}`, err.stack);
+            this.logger.error(`[POPIN] Step 5: ❌ HANDLER FAILED: ${err.message}`, err.stack);
             saved.processingError = err.message?.substring(0, 500);
             await this.popinEventRepo.save(saved);
         }
@@ -91,6 +95,7 @@ export class PopinService {
     // ── Event Routing ─────────────────────────────────────────────────────────
 
     private async processEvent(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN] Routing event "${dto.event}" to handler…`);
         switch (dto.event) {
             case 'popin_user_captured':
                 await this.handleUserCaptured(event, dto);
@@ -112,7 +117,7 @@ export class PopinService {
                 await this.handleCallRated(event, dto);
                 break;
             default:
-                this.logger.warn(`Unhandled lead event: ${dto.event}`);
+                this.logger.warn(`[POPIN] ⚠️ Unhandled lead event: ${dto.event}`);
         }
     }
 
@@ -120,54 +125,73 @@ export class PopinService {
 
     /** User submitted details via Popin widget → new lead */
     private async handleUserCaptured(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:user_captured] Processing…`);
         const phone = this.extractPhone(dto);
         if (!phone) {
-            this.logger.warn(`popin_user_captured without phone, skipping lead creation`);
+            this.logger.warn(`[POPIN:user_captured] ❌ No phone number — skipping lead creation`);
             return;
         }
 
+        this.logger.log(`[POPIN:user_captured] Building lead DTO — phone="${phone}" name="${dto.properties?.customer_name ?? 'Popin User'}"`);
         const leadDto = this.buildCreateLeadDto(dto, { status: 'new' });
+        this.logger.log(`[POPIN:user_captured] Lead DTO: ${JSON.stringify(leadDto)}`);
+
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from popin_user_captured`);
+        this.logger.log(`[POPIN:user_captured] ✅ Created lead id=${lead.id}`);
     }
 
     /** Completed video call → lead marked as contacted */
     private async handleCallSuccessful(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:call_successful] Processing…`);
         const phone = this.extractPhone(dto);
-        if (!phone) return;
+        if (!phone) {
+            this.logger.warn(`[POPIN:call_successful] ❌ No phone — skipping`);
+            return;
+        }
 
         const leadDto = this.buildCreateLeadDto(dto, { status: 'contacted' });
-        // Store call duration in specificDetails
         if (dto.properties?.call_duration) {
             leadDto.specificDetails = {
                 ...leadDto.specificDetails,
                 popin_call_duration: dto.properties.call_duration,
             };
         }
+        this.logger.log(`[POPIN:call_successful] Lead DTO: ${JSON.stringify(leadDto)}`);
+
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from popin_call_successful (contacted)`);
+        this.logger.log(`[POPIN:call_successful] ✅ Created lead id=${lead.id} (status=contacted, duration=${dto.properties?.call_duration ?? 'n/a'})`);
     }
 
     /** Missed/abandoned call → lead with follow-up in 30 min */
     private async handleCallMissed(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:call_missed] Processing (event=${dto.event})…`);
         const phone = this.extractPhone(dto);
-        if (!phone) return;
+        if (!phone) {
+            this.logger.warn(`[POPIN:call_missed] ❌ No phone — skipping`);
+            return;
+        }
 
         const thirtyMinsLater = new Date(Date.now() + 30 * 60 * 1000);
         const leadDto = this.buildCreateLeadDto(dto, {
             nextActionDate: thirtyMinsLater.toISOString(),
         });
+        this.logger.log(`[POPIN:call_missed] Lead DTO: ${JSON.stringify(leadDto)}`);
+
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from ${dto.event} (follow-up at ${thirtyMinsLater.toISOString()})`);
+        this.logger.log(`[POPIN:call_missed] ✅ Created lead id=${lead.id} (follow-up at ${thirtyMinsLater.toISOString()})`);
     }
 
     /** Scheduled call → lead with nextActionDate = scheduled time */
     private async handleScheduledCreated(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:scheduled] Processing…`);
         const phone = this.extractPhone(dto);
-        if (!phone) return;
+        if (!phone) {
+            this.logger.warn(`[POPIN:scheduled] ❌ No phone — skipping`);
+            return;
+        }
 
         let nextActionDate: string | undefined;
         // Parse Popin scheduled_date (d-M-Y) + scheduled_time (h:i A) into ISO
@@ -182,6 +206,7 @@ export class PopinService {
                 dto.properties.scheduled_time,
             );
         }
+        this.logger.log(`[POPIN:scheduled] Parsed nextActionDate="${nextActionDate}"`);
 
         const leadDto = this.buildCreateLeadDto(dto, {
             nextActionDate,
@@ -197,33 +222,41 @@ export class PopinService {
                 popin_agent_email: dto.properties.agent_email,
             };
         }
+        this.logger.log(`[POPIN:scheduled] Lead DTO: ${JSON.stringify(leadDto)}`);
 
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from popin_scheduled_created (scheduled: ${nextActionDate})`);
+        this.logger.log(`[POPIN:scheduled] ✅ Created lead id=${lead.id} (scheduled: ${nextActionDate})`);
     }
 
     /** Agent added remark → log it. Lead may or may not exist. */
     private async handleRemarkAdded(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:remark] Processing…`);
         const phone = this.extractPhone(dto);
-        if (!phone) return;
+        if (!phone) {
+            this.logger.warn(`[POPIN:remark] ❌ No phone — skipping`);
+            return;
+        }
 
-        // Create a lead with the remark — if a customer with this phone already exists,
-        // it will be associated via the existing customer record.
         const leadDto = this.buildCreateLeadDto(dto, {});
         if (dto.properties?.remark) {
             leadDto.notes = `[Popin Remark] ${dto.properties.remark}`;
         }
+        this.logger.log(`[POPIN:remark] Lead DTO: ${JSON.stringify(leadDto)}`);
 
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from popin_call_remark_added`);
+        this.logger.log(`[POPIN:remark] ✅ Created lead id=${lead.id}`);
     }
 
     /** Call rated → create lead with rating in specificDetails */
     private async handleCallRated(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:rated] Processing…`);
         const phone = this.extractPhone(dto);
-        if (!phone) return;
+        if (!phone) {
+            this.logger.warn(`[POPIN:rated] ❌ No phone — skipping`);
+            return;
+        }
 
         const leadDto = this.buildCreateLeadDto(dto, {});
         leadDto.specificDetails = {
@@ -231,10 +264,11 @@ export class PopinService {
             popin_rating: dto.properties?.rating,
             popin_rating_comments: dto.properties?.comments,
         };
+        this.logger.log(`[POPIN:rated] Lead DTO: ${JSON.stringify(leadDto)}`);
 
         const lead = await this.leadsService.create(leadDto);
         event.leadRecordId = lead.id;
-        this.logger.log(`Created lead ${lead.id} from popin_call_rated (rating=${dto.properties?.rating})`);
+        this.logger.log(`[POPIN:rated] ✅ Created lead id=${lead.id} (rating=${dto.properties?.rating})`);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
