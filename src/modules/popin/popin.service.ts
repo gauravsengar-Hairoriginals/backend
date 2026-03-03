@@ -11,17 +11,21 @@ import { LeadsService } from '../leads/leads.service';
 import { CreateLeadDto } from '../leads/dto/create-lead.dto';
 
 /**
- * Events we handle to create/update leads.
- * Others are logged but not processed into leads.
+ * ALL Popin webhook events that create/update leads.
+ * See: https://popin.gitbook.io/popin-developer-hub/popin-webhook-integration-guide
  */
 const LEAD_EVENTS = new Set([
-    'popin_user_captured',
-    'popin_call_successful',
-    'popin_call_missed',
-    'popin_call_abandoned',
-    'popin_scheduled_created',
-    'popin_call_remark_added',
-    'popin_call_rated',
+    'popin_user_captured',           // 9. User details captured
+    'popin_call_successful',         // 1. Call completed
+    'popin_call_missed',             // 2. Call missed
+    'popin_call_abandoned',          // 3. Call abandoned
+    'popin_call_remark_added',       // 4. Remark added to call
+    'popin_scheduled_created',       // 5. Call scheduled
+    'popin_missed_notification',     // 6. Missed call notification sent
+    'popin_scheduled_notification',  // 7. Scheduled call notification sent
+    'popin_prescheduled_notification', // 8. Pre-notification for scheduled call
+    'popin_call_rated',              // 10. Call rated
+    'popin_call_guest_connected',    // 11. Guest connected to call
 ]);
 
 @Injectable()
@@ -116,8 +120,20 @@ export class PopinService {
             case 'popin_call_rated':
                 await this.handleCallRated(event, dto);
                 break;
+            case 'popin_missed_notification':
+                await this.handleMissedNotification(event, dto);
+                break;
+            case 'popin_scheduled_notification':
+            case 'popin_prescheduled_notification':
+                await this.handleScheduledNotification(event, dto);
+                break;
+            case 'popin_call_guest_connected':
+                await this.handleGuestConnected(event, dto);
+                break;
             default:
-                this.logger.warn(`[POPIN] ⚠️ Unhandled lead event: ${dto.event}`);
+                // Catch-all: still create a lead for any unknown event that passes LEAD_EVENTS check
+                this.logger.warn(`[POPIN] ⚠️ No specific handler for: ${dto.event} — using generic handler`);
+                await this.handleGenericEvent(event, dto);
         }
     }
 
@@ -271,13 +287,101 @@ export class PopinService {
         this.logger.log(`[POPIN:rated] ✅ Created lead id=${lead.id} (rating=${dto.properties?.rating})`);
     }
 
+    /** Missed call notification sent to user → lead with short follow-up */
+    private async handleMissedNotification(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:missed_notif] Processing…`);
+        const phone = this.extractPhone(dto);
+        if (!phone) {
+            this.logger.warn(`[POPIN:missed_notif] ❌ No phone — skipping`);
+            return;
+        }
+
+        const fifteenMinsLater = new Date(Date.now() + 15 * 60 * 1000);
+        const leadDto = this.buildCreateLeadDto(dto, {
+            nextActionDate: fifteenMinsLater.toISOString(),
+        });
+        this.logger.log(`[POPIN:missed_notif] Lead DTO: ${JSON.stringify(leadDto)}`);
+
+        const lead = await this.leadsService.create(leadDto);
+        event.leadRecordId = lead.id;
+        this.logger.log(`[POPIN:missed_notif] ✅ Created lead id=${lead.id} (follow-up at ${fifteenMinsLater.toISOString()})`);
+    }
+
+    /** Scheduled/Pre-scheduled notification → lead to track the notification */
+    private async handleScheduledNotification(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:sched_notif] Processing (event=${dto.event})…`);
+        const phone = this.extractPhone(dto);
+        if (!phone) {
+            this.logger.warn(`[POPIN:sched_notif] ❌ No phone — skipping`);
+            return;
+        }
+
+        let nextActionDate: string | undefined;
+        if (dto.properties?.scheduled_date_local && dto.properties?.scheduled_time_local) {
+            nextActionDate = this.parsePopinDateTime(
+                dto.properties.scheduled_date_local,
+                dto.properties.scheduled_time_local,
+            );
+        } else if (dto.properties?.scheduled_date && dto.properties?.scheduled_time) {
+            nextActionDate = this.parsePopinDateTime(
+                dto.properties.scheduled_date,
+                dto.properties.scheduled_time,
+            );
+        }
+
+        const leadDto = this.buildCreateLeadDto(dto, {
+            nextActionDate,
+            appointmentBooked: true,
+            bookedDate: nextActionDate?.split('T')[0],
+        });
+        this.logger.log(`[POPIN:sched_notif] Lead DTO: ${JSON.stringify(leadDto)}`);
+
+        const lead = await this.leadsService.create(leadDto);
+        event.leadRecordId = lead.id;
+        this.logger.log(`[POPIN:sched_notif] ✅ Created lead id=${lead.id} (scheduled: ${nextActionDate})`);
+    }
+
+    /** Guest (user or agent) connected to an ongoing call */
+    private async handleGuestConnected(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:guest] Processing — guest_type=${dto.guest_type} guest_id=${dto.guest_id}…`);
+        const phone = this.extractPhone(dto);
+        if (!phone) {
+            this.logger.warn(`[POPIN:guest] ❌ No phone — skipping`);
+            return;
+        }
+
+        const leadDto = this.buildCreateLeadDto(dto, {});
+        this.logger.log(`[POPIN:guest] Lead DTO: ${JSON.stringify(leadDto)}`);
+
+        const lead = await this.leadsService.create(leadDto);
+        event.leadRecordId = lead.id;
+        this.logger.log(`[POPIN:guest] ✅ Created lead id=${lead.id} (guest_type=${dto.guest_type})`);
+    }
+
+    /** Generic catch-all: create a lead for any event in LEAD_EVENTS without a specific handler */
+    private async handleGenericEvent(event: PopinEvent, dto: PopinWebhookDto): Promise<void> {
+        this.logger.log(`[POPIN:generic] Processing "${dto.event}"…`);
+        const phone = this.extractPhone(dto);
+        if (!phone) {
+            this.logger.warn(`[POPIN:generic] ❌ No phone — skipping`);
+            return;
+        }
+
+        const leadDto = this.buildCreateLeadDto(dto, {});
+        this.logger.log(`[POPIN:generic] Lead DTO: ${JSON.stringify(leadDto)}`);
+
+        const lead = await this.leadsService.create(leadDto);
+        event.leadRecordId = lead.id;
+        this.logger.log(`[POPIN:generic] ✅ Created lead id=${lead.id}`);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private buildCreateLeadDto(
         dto: PopinWebhookDto,
         overrides: Partial<CreateLeadDto> & { status?: string },
     ): CreateLeadDto {
-        const props = dto.properties ?? {};
+        const props = dto.properties ?? {} as any;
         const phone = this.extractPhone(dto);
         const name = props.customer_name || 'Popin User';
 
@@ -288,17 +392,55 @@ export class PopinService {
             pageType: this.extractPageType(props.url),
             customerProductInterest: props.product || undefined,
             specificDetails: {
+                // ── Core Popin identifiers ──
                 popin_event: dto.event,
                 popin_user_id: dto.user_id,
+                popin_timestamp: dto.timestamp,
                 popin_url: props.url,
-                ...(props.meta ?? {}),
-                ...(props.extra ?? {}),
+
+                // ── Customer fields ──
+                popin_customer_name: props.customer_name,
+                popin_customer_email: props.customer_email ?? dto.email,
+                popin_customer_phone: props.customer_phone_number ?? dto.phone_number,
+                popin_customer_country_code: props.customer_country_code ?? dto.country_code,
+
+                // ── Call fields ──
+                popin_call_duration: props.call_duration,
+                popin_product: props.product,
+
+                // ── Agent fields ──
+                popin_agent_name: props.agent_name,
+                popin_agent_email: props.agent_email,
+
+                // ── Schedule fields ──
+                popin_scheduled_date: props.scheduled_date,
+                popin_scheduled_time: props.scheduled_time,
+                popin_scheduled_date_local: props.scheduled_date_local,
+                popin_scheduled_time_local: props.scheduled_time_local,
+
+                // ── Remark/Rating fields ──
+                popin_remark: props.remark,
+                popin_rating: props.rating,
+                popin_rating_comments: props.comments,
+
+                // ── Guest connected fields ──
+                popin_guest_type: dto.guest_type,
+                popin_guest_id: dto.guest_id,
+                popin_guest_agent_name: dto.guest_agent_name,
+                popin_guest_agent_email: dto.guest_agent_email,
+
+                // ── Raw meta & extra (reserved by Popin) ──
+                popin_meta: dto.meta,
+                popin_extra: props.extra,
             },
             ...overrides,
         };
 
+        // Clean up undefined values from specificDetails
+        const sd = leadDto.specificDetails;
+        Object.keys(sd).forEach(k => { if (sd[k] === undefined || sd[k] === null) delete sd[k]; });
+
         // Remove status from CREATE dto — it's auto-set by the service
-        // But we can set it to 'contacted' for call_successful via update after create
         delete leadDto.status;
 
         return leadDto;
