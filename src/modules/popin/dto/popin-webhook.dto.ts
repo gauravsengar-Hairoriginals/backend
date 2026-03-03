@@ -39,6 +39,9 @@ export class PopinWebhookDto {
     @IsString() @IsOptional() guest_agent_name?: string;
     @IsString() @IsOptional() guest_agent_email?: string;
 
+    @IsOptional()
+    meta?: any;
+
     @ValidateNested()
     @Type(() => PopinPropertiesDto)
     @IsOptional()
