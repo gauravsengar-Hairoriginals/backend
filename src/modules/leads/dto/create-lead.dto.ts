@@ -120,6 +120,10 @@ export class CreateLeadDto {
     @IsOptional()
     customerProductInterest?: string;
 
+    @ApiPropertyOptional({ example: 'Hair Extensions, Wigs' })
+    @IsOptional()
+    preferredProducts?: any;
+
     @ApiPropertyOptional()
     @IsBoolean()
     @IsOptional()
