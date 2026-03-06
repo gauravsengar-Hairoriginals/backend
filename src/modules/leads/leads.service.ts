@@ -22,6 +22,8 @@ export interface LeadsQuery {
     search?: string;
     status?: string;
     assignedToId?: string;
+    fromDate?: string;   // ISO date string e.g. '2026-03-01'
+    toDate?: string;     // ISO date string e.g. '2026-03-31'
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -170,7 +172,7 @@ export class LeadsService {
         query: LeadsQuery = {},
         requestingUser?: User,
     ): Promise<{ leads: LeadRecord[]; total: number }> {
-        const { page = 1, limit = 20, search, status, assignedToId } = query;
+        const { page = 1, limit = 20, search, status, assignedToId, fromDate, toDate } = query;
 
         const qb = this.leadRecordRepo
             .createQueryBuilder('lr')
@@ -192,6 +194,14 @@ export class LeadsService {
             if (status) {
                 qb.andWhere('lr.status = :status', { status });
             }
+        }
+
+        // Date range filter
+        if (fromDate) {
+            qb.andWhere('lr.createdAt >= :fromDate', { fromDate: `${fromDate}T00:00:00` });
+        }
+        if (toDate) {
+            qb.andWhere('lr.createdAt <= :toDate', { toDate: `${toDate}T23:59:59` });
         }
 
         if (search) {

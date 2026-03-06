@@ -46,9 +46,11 @@ export class LeadsController {
         @Query('search') search?: string,
         @Query('status') status?: string,
         @Query('assignedToId') assignedToId?: string,
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
         @CurrentUser() user?: User,
     ) {
-        return this.leadsService.findAll({ page: +(page ?? 1), limit: +(limit ?? 20), search, status, assignedToId }, user);
+        return this.leadsService.findAll({ page: +(page ?? 1), limit: +(limit ?? 20), search, status, assignedToId, fromDate, toDate }, user);
     }
 
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────
