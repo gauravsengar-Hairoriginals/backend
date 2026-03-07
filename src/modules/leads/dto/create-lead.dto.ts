@@ -15,7 +15,7 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { CALL_STATUS_OPTIONS } from '../entities/lead-record.entity';
+import { CALL_STATUS_OPTIONS, CONSULTATION_TYPE_OPTIONS } from '../entities/lead-record.entity';
 
 // ── Nested DTOs for products ──────────────────────────────────────────────────
 
@@ -124,6 +124,45 @@ export class CreateLeadDto {
     @IsOptional()
     preferredProducts?: any;
 
+    @ApiPropertyOptional({ example: 'Try at Home' })
+    @IsString()
+    @IsOptional()
+    formType?: string;
+
+    @ApiPropertyOptional({ example: '3522' })
+    @IsOptional()
+    productId?: any;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    utm_campaign?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    utm_content?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    utm_medium?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    utm_source?: string;
+
+    @ApiPropertyOptional()
+    @IsString()
+    @IsOptional()
+    utm_term?: string;
+
+    @ApiPropertyOptional({ example: 'Wig Consultation' })
+    @IsIn([...CONSULTATION_TYPE_OPTIONS])
+    @IsOptional()
+    consultationType?: string;
+
     @ApiPropertyOptional()
     @IsBoolean()
     @IsOptional()
@@ -135,6 +174,11 @@ export class CreateLeadDto {
     @IsDateString()
     @IsOptional()
     bookedDate?: string;
+
+    @ApiPropertyOptional({ example: '10:00 AM' })
+    @IsString()
+    @IsOptional()
+    bookedTimeSlot?: string;
 
     @ApiPropertyOptional({ example: '2026-03-01' })
     @Transform(({ value }) => value === '' ? undefined : value)
@@ -169,10 +213,12 @@ export class UpdateLeadRecordDto {
     @Transform(({ value }) => value === '' ? undefined : value)
     @ValidateIf(o => o.bookedDate != null)
     @IsDateString() @IsOptional() bookedDate?: string;
+    @IsString() @IsOptional() bookedTimeSlot?: string;
 
     // Preferences
     @IsString() @IsOptional() preferredExperienceCenter?: string;
     @IsString() @IsOptional() customerProductInterest?: string;
+    @IsIn([...CONSULTATION_TYPE_OPTIONS]) @IsOptional() consultationType?: string;
     @Transform(({ value }) => value === '' ? undefined : value)
     @ValidateIf(o => o.nextActionDate != null)
     @IsDateString() @IsOptional() nextActionDate?: string;

@@ -43,6 +43,15 @@ export const TIME_SLOT_OPTIONS = [
 ] as const;
 export type TimeSlot = typeof TIME_SLOT_OPTIONS[number];
 
+export const CONSULTATION_TYPE_OPTIONS = [
+    'Wig Consultation',
+    'DIY Consultation',
+    'Topper Consultation',
+    'Man Patch Consultation',
+    'PE Consultation',
+] as const;
+export type ConsultationType = typeof CONSULTATION_TYPE_OPTIONS[number];
+
 @Entity('lead_records')
 export class LeadRecord {
     @PrimaryGeneratedColumn('uuid')
@@ -114,6 +123,9 @@ export class LeadRecord {
     @Column({ name: 'booked_date', type: 'date', nullable: true })
     bookedDate: string;
 
+    @Column({ name: 'booked_time_slot', nullable: true })
+    bookedTimeSlot: string;
+
     // ── Notes ───────────────────────────────────────────────────────────
     @Column({ type: 'text', nullable: true })
     remarks: string;
@@ -124,6 +136,9 @@ export class LeadRecord {
 
     @Column({ name: 'customer_product_interest', type: 'text', nullable: true })
     customerProductInterest: string;
+
+    @Column({ name: 'consultation_type', nullable: true })
+    consultationType: string;
 
     @Column({ name: 'next_action_date', type: 'timestamp', nullable: true })
     nextActionDate: string;

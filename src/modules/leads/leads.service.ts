@@ -135,8 +135,10 @@ export class LeadsService {
                 specificDetails: dto.specificDetails,
                 preferredExperienceCenter: dto.preferredExperienceCenter,
                 customerProductInterest: dto.customerProductInterest,
+                consultationType: (dto as any).consultationType,
                 appointmentBooked: dto.appointmentBooked,
                 bookedDate: dto.bookedDate,
+                bookedTimeSlot: (dto as any).bookedTimeSlot,
                 nextActionDate: dto.nextActionDate,
                 status: LeadStatus.NEW,
                 isRevisit: false, // Will update below if prior leads exist
@@ -330,9 +332,11 @@ export class LeadsService {
         if (dto.remarks !== undefined) lead.remarks = dto.remarks;
         if (dto.appointmentBooked !== undefined) lead.appointmentBooked = dto.appointmentBooked;
         if (dto.bookedDate !== undefined) lead.bookedDate = dto.bookedDate;
+        if ((dto as any).bookedTimeSlot !== undefined) lead.bookedTimeSlot = (dto as any).bookedTimeSlot;
         if (dto.status !== undefined) lead.status = dto.status as LeadStatus;
         if (dto.preferredExperienceCenter !== undefined) lead.preferredExperienceCenter = dto.preferredExperienceCenter;
         if (dto.customerProductInterest !== undefined) lead.customerProductInterest = dto.customerProductInterest;
+        if ((dto as any).consultationType !== undefined) lead.consultationType = (dto as any).consultationType;
         if (dto.nextActionDate) lead.nextActionDate = dto.nextActionDate; // only override if explicitly set (non-empty)
 
         const saved = await this.leadRecordRepo.save(lead);
