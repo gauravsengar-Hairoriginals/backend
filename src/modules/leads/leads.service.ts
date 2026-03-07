@@ -97,7 +97,7 @@ export class LeadsService {
     // ── Create ────────────────────────────────────────────────────────────
     async create(dto: CreateLeadDto): Promise<LeadRecord> {
         return this.dataSource.transaction(async (em) => {
-            const nameParts = dto.name.trim().split(' ');
+            const nameParts = (dto.name ?? '').trim().split(' ');
             const firstName = nameParts[0];
             const lastName = nameParts.slice(1).join(' ') || '';
 
@@ -110,7 +110,7 @@ export class LeadsService {
                 customer = em.create(Customer, {
                     firstName,
                     lastName,
-                    name: dto.name.trim(),
+                    name: (dto.name ?? '').trim(),
                     phone: normalizePhone(dto.phone),
                     city: dto.city,
                     addressLine1: dto.address,
