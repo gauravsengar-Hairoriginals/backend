@@ -55,9 +55,10 @@ export class CreateLeadProductDto {
 
 // ── Create ────────────────────────────────────────────────────────────────────
 export class CreateLeadDto {
-    @ApiProperty({ example: 'Priya Sharma' })
+    @ApiPropertyOptional({ example: 'Priya Sharma' })
     @IsString()
-    name: string;
+    @IsOptional()
+    name?: string;
 
     @ApiProperty({ example: '9876543210' })
     @IsString()
