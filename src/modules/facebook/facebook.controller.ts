@@ -1,0 +1,152 @@
+import {
+    Controller,
+    Get,
+    Post,
+    Put,
+    Patch,
+    Delete,
+    Query,
+    Body,
+    Param,
+    Res,
+    UseGuards,
+    HttpCode,
+    UseInterceptors,
+    UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { FacebookService } from './facebook.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+
+@ApiTags('Facebook')
+@Controller('api/v1/facebook')
+export class FacebookController {
+    constructor(private readonly facebookService: FacebookService) { }
+
+    // ── Webhook Verification (GET — public, called by Facebook) ───────────
+    @Get('webhook')
+    verifyWebhook(@Query() query: any, @Res() res: Response) {
+        try {
+            const challenge = this.facebookService.verifyWebhook(query);
+            // Facebook expects the raw challenge string, not JSON
+            return res.status(200).send(challenge);
+        } catch {
+            return res.status(403).send('Verification failed');
+        }
+    }
+
+    // ── Webhook Handler (POST — public, called by Facebook) ───────────────
+    @Post('webhook')
+    @HttpCode(200)
+    async handleWebhook(@Body() body: any) {
+        // Always return 200 immediately to Facebook, process async
+        await this.facebookService.handleWebhook(body);
+        return { status: 'ok' };
+    }
+
+    // ── Config ────────────────────────────────────────────────────────────
+    @Get('config')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async listConfigs() {
+        return this.facebookService.listConfigs();
+    }
+
+    @Put('config')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async saveConfig(
+        @Body() body: { pageId: string; pageName?: string; accessToken: string; appSecret?: string },
+    ) {
+        return this.facebookService.saveConfig(body);
+    }
+
+    @Delete('config/:configId')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    @HttpCode(204)
+    async deleteConfig(@Param('configId') configId: string) {
+        return this.facebookService.deleteConfig(configId);
+    }
+
+    @Patch('config/:configId/active')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async toggleConfigActive(
+        @Param('configId') configId: string,
+        @Body() body: { isActive: boolean },
+    ) {
+        return this.facebookService.toggleConfigActive(configId, body.isActive);
+    }
+
+    // ── Forms ─────────────────────────────────────────────────────────────
+    @Get('forms')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async listForms() {
+        return this.facebookService.listForms();
+    }
+
+    @Post('forms/import')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async importForms(@Body() body: { pageId: string }) {
+        return this.facebookService.importForms(body.pageId);
+    }
+
+    // ── Offline CSV Uploads ───────────────────────────────────────────────
+
+    @Post('forms/upload-new')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadNewFormCsv(@UploadedFile() file: Express.Multer.File) {
+        return this.facebookService.processNewFormCsv(file);
+    }
+
+    @Post('forms/:formId/upload')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    @UseInterceptors(FileInterceptor('file'))
+    async uploadCsvToExistingForm(
+        @Param('formId') formId: string,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.facebookService.processCsvForExistingForm(formId, file);
+    }
+
+    // ── Form Mapping & Sync ───────────────────────────────────────────────
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async updateMapping(
+        @Param('formId') formId: string,
+        @Body() body: { fieldMapping: Record<string, string> },
+    ) {
+        return this.facebookService.updateMapping(formId, body.fieldMapping);
+    }
+
+    @Patch('forms/:formId/sync')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @ApiBearerAuth()
+    async toggleSync(
+        @Param('formId') formId: string,
+        @Body() body: { syncEnabled: boolean },
+    ) {
+        return this.facebookService.toggleSync(formId, body.syncEnabled);
+    }
+}

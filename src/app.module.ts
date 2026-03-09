@@ -31,6 +31,7 @@ import { FieldForceModule } from './modules/field-force/field-force.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { CallLogsModule } from './modules/call-logs/call-logs.module';
 import { PopinModule } from './modules/popin/popin.module';
+import { FacebookModule } from './modules/facebook/facebook.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { PopinModule } from './modules/popin/popin.module';
     LeadsModule,
     CallLogsModule,
     PopinModule,
+    FacebookModule,
   ],
 })
 export class AppModule { }

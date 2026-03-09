@@ -169,6 +169,17 @@ export class LeadsService {
         });
     }
 
+    /**
+     * Checks if a Facebook lead already exists by checking the specificDetails
+     * JSON payload for a matching fb_leadgen_id. Used for deduplication.
+     */
+    async findByFacebookLeadgenId(leadgenId: string): Promise<LeadRecord | null> {
+        return this.leadRecordRepo
+            .createQueryBuilder('lead')
+            .where(`lead.specific_details->>'fb_leadgen_id' = :leadgenId`, { leadgenId })
+            .getOne();
+    }
+
     // ── Find All ──────────────────────────────────────────────────────────
     async findAll(
         query: LeadsQuery = {},
