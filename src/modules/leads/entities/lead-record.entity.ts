@@ -85,6 +85,10 @@ export class LeadRecord {
     @Column({ name: 'page_type', nullable: true })
     pageType: string;
 
+    /** Derived category: EC | HT | POPIN | WEBSITE */
+    @Column({ name: 'lead_category', nullable: true })
+    leadCategory: string;
+
     @Index()
     @Column({ name: 'campaign_id', nullable: true })
     campaignId: string;

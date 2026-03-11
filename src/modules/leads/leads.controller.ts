@@ -32,6 +32,19 @@ export class LeadsController {
         return this.leadsService.create(dto);
     }
 
+    // ── Get Tab Counts ────────────────────────────────────────────────────────
+    @Get('counts')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    getCounts(
+        @Query('assignedToId') assignedToId?: string,
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
+        @CurrentUser() user?: User,
+    ) {
+        return this.leadsService.getTabCounts(user, { assignedToId, fromDate, toDate });
+    }
+
     // ── Admin + Lead Callers: list leads (callers see only their own) ─────────
     @Get()
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,9 +61,21 @@ export class LeadsController {
         @Query('assignedToId') assignedToId?: string,
         @Query('fromDate') fromDate?: string,
         @Query('toDate') toDate?: string,
+        @Query('name') name?: string,
+        @Query('phone') phone?: string,
+        @Query('city') city?: string,
+        @Query('source') source?: string,
+        @Query('campaign') campaign?: string,
+        @Query('assignedTo') assignedTo?: string,
+        @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
         @CurrentUser() user?: User,
     ) {
-        return this.leadsService.findAll({ page: +(page ?? 1), limit: +(limit ?? 20), search, status, assignedToId, fromDate, toDate }, user);
+        return this.leadsService.findAll({
+            page: +(page ?? 1),
+            limit: +(limit ?? 20),
+            search, status, assignedToId, fromDate, toDate,
+            name, phone, city, source, campaign, assignedTo, tab
+        }, user);
     }
 
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────

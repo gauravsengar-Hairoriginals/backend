@@ -156,5 +156,62 @@ export class AdminController {
     ) {
         return this.adminService.resetLeadCallerPassword(id, body.newPassword);
     }
+
+    @Post('lead-callers/:id/update')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async updateLeadCaller(
+        @Param('id') id: string,
+        @Body() body: any,
+    ) {
+        return this.adminService.updateLeadCaller(id, body);
+    }
+
+    @Post('lead-callers/:id/shift/start')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    async startShift(@Param('id') id: string) {
+        return this.adminService.startShift(id);
+    }
+
+    @Post('lead-callers/:id/shift/end')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    async endShift(@Param('id') id: string) {
+        return this.adminService.endShift(id);
+    }
+
+    // ── Experience Centers Management ───────────────────────────────────
+
+    @Post('experience-centers')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async createExperienceCenter(@Body() body: any) {
+        return this.adminService.createExperienceCenter(body);
+    }
+
+    @Get('experience-centers')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    async listExperienceCenters(
+        @Query('search') search?: string,
+        @Query('isActive') isActive?: string,
+    ) {
+        const isActiveBool = isActive !== undefined ? isActive === 'true' : undefined;
+        return this.adminService.listExperienceCenters(search, isActiveBool);
+    }
+
+    @Post('experience-centers/:id')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async updateExperienceCenter(
+        @Param('id') id: string,
+        @Body() body: any,
+    ) {
+        return this.adminService.updateExperienceCenter(id, body);
+    }
+
+    @Post('experience-centers/:id/status')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async toggleExperienceCenterStatus(
+        @Param('id') id: string,
+        @Body() body: { isActive: boolean },
+    ) {
+        return this.adminService.toggleExperienceCenterStatus(id, body.isActive);
+    }
 }
 

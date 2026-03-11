@@ -9,6 +9,8 @@ import { Repository, DataSource } from 'typeorm';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { CallerCategory } from '../users/enums/caller-category.enum';
+import { CallerRegion } from '../users/enums/caller-region.enum';
 import { LeadRecord, LeadStatus } from './entities/lead-record.entity';
 import { LeadHistory } from './entities/lead-history.entity';
 import { LeadProduct } from './entities/lead-product.entity';
@@ -24,6 +26,15 @@ export interface LeadsQuery {
     assignedToId?: string;
     fromDate?: string;   // ISO date string e.g. '2026-03-01'
     toDate?: string;     // ISO date string e.g. '2026-03-31'
+    // Per-column filters
+    name?: string;
+    phone?: string;
+    city?: string;
+    source?: string;
+    campaign?: string;
+    assignedTo?: string;
+    // Tab filter
+    tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped';
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -75,6 +86,38 @@ function buildLeadProducts(dtoProducts: CreateLeadProductDto[], leadRecordId: st
         return lp;
     });
 }
+
+// ── Lead Category Derivation ──────────────────────────────────────────────────
+/** Derive lead category from source and pageType strings */
+function deriveLeadCategory(source?: string, pageType?: string): string {
+    const haystack = `${source ?? ''} ${pageType ?? ''}`.toLowerCase();
+    if (haystack.includes('ec')) return 'EC';
+    if (haystack.includes('ht')) return 'HT';
+    if ((source ?? '').toLowerCase() === 'popins' || haystack.includes('popin')) return 'POPIN';
+    return 'WEBSITE';
+}
+
+// ── City → Region Mapping ─────────────────────────────────────────────────
+const DELHI_NCR_CITIES = ['delhi', 'noida', 'gurugram', 'gurgaon', 'ghaziabad', 'faridabad', 'greater noida'];
+const HYDERABAD_CITIES = ['hyderabad', 'secunderabad', 'cyberabad'];
+const MUMBAI_CITIES = ['mumbai', 'thane', 'navi mumbai', 'kalyan', 'dombivli'];
+
+function cityToRegion(city?: string): CallerRegion {
+    if (!city) return CallerRegion.REST_OF_INDIA;
+    const lower = city.toLowerCase();
+    if (DELHI_NCR_CITIES.some(c => lower.includes(c))) return CallerRegion.DELHI_NCR;
+    if (HYDERABAD_CITIES.some(c => lower.includes(c))) return CallerRegion.HYDERABAD;
+    if (MUMBAI_CITIES.some(c => lower.includes(c))) return CallerRegion.MUMBAI;
+    return CallerRegion.REST_OF_INDIA;
+}
+
+/** Map lead category string to the CallerCategory that handles it */
+const LEAD_CAT_TO_CALLER_CAT: Record<string, CallerCategory> = {
+    EC: CallerCategory.EC_CALLER,
+    HT: CallerCategory.HT_CALLER,
+    WEBSITE: CallerCategory.WEBSITE_CALLER,
+    POPIN: CallerCategory.POPIN_CALLER,
+};
 
 @Injectable()
 export class LeadsService {
@@ -131,6 +174,7 @@ export class LeadsService {
                 customerId: customer.id,
                 source: dto.source,
                 pageType: dto.pageType,
+                leadCategory: deriveLeadCategory(dto.source, dto.pageType),
                 campaignId: dto.campaignId,
                 specificDetails: dto.specificDetails,
                 preferredExperienceCenter: dto.preferredExperienceCenter,
@@ -162,10 +206,15 @@ export class LeadsService {
 
             this.logger.log(`Lead created: record=${saved.id} customer=${customer.id}`);
 
-            return em.findOne(LeadRecord, {
+            const final = await em.findOne(LeadRecord, {
                 where: { id: saved.id },
                 relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
-            }) as Promise<LeadRecord>;
+            }) as LeadRecord;
+
+            // Auto-assign after creation (outside the em to avoid deadlock)
+            setImmediate(() => this.autoAssignLead(final).catch(e => this.logger.warn('autoAssign error: ' + e?.message)));
+
+            return final;
         });
     }
 
@@ -180,12 +229,77 @@ export class LeadsService {
             .getOne();
     }
 
+    // ── Auto-Assignment Engine ─────────────────────────────────────────────
+    private async autoAssignLead(lead: LeadRecord): Promise<void> {
+        // Refresh to get fresh customer relation
+        const freshLead = await this.leadRecordRepo.findOne({
+            where: { id: lead.id },
+            relations: ['customer'],
+        });
+        if (!freshLead) return;
+
+        const category = freshLead.leadCategory;
+        if (!category) return;
+
+        const callerCategory = LEAD_CAT_TO_CALLER_CAT[category];
+        if (!callerCategory) return;
+
+        let assignedUserId: string | null = null;
+
+        if (category === 'POPIN') {
+            // Assign to the caller who handled the popin/IVR call (matched by agentPhone)
+            const agentPhone = freshLead.specificDetails?.agentPhone
+                ?? freshLead.specificDetails?.agent_phone;
+            if (agentPhone) {
+                const caller = await this.userRepo.findOne({
+                    where: {
+                        phone: normalizePhone(agentPhone),
+                        role: UserRole.LEAD_CALLER,
+                        isOnShift: true,
+                    },
+                });
+                assignedUserId = caller?.id ?? null;
+            }
+        } else {
+            // Round-robin by caller category + region
+            const region = cityToRegion(freshLead.customer?.city);
+            const callers = await this.userRepo
+                .createQueryBuilder('u')
+                .where('u.role = :role', { role: UserRole.LEAD_CALLER })
+                .andWhere('u.caller_category = :cat', { cat: callerCategory })
+                .andWhere('u.caller_region = :region', { region })
+                .andWhere('u.is_on_shift = true')
+                .andWhere('u.is_active = true')
+                .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST')
+                .getMany();
+
+            if (callers.length > 0) {
+                assignedUserId = callers[0].id;
+            }
+        }
+
+        if (assignedUserId) {
+            const assignee = await this.userRepo.findOne({ where: { id: assignedUserId } });
+            await this.leadRecordRepo.update(lead.id, {
+                assignedToId: assignedUserId,
+                assignedToName: assignee?.name ?? '',
+            });
+            await this.userRepo.update(assignedUserId, { lastAssignedAt: new Date() });
+            this.logger.log(`Lead ${lead.id} auto-assigned to ${assignedUserId} [${category}]`);
+        } else {
+            this.logger.warn(`Lead ${lead.id}: no available caller for category=${category}`);
+        }
+    }
+
     // ── Find All ──────────────────────────────────────────────────────────
     async findAll(
         query: LeadsQuery = {},
         requestingUser?: User,
     ): Promise<{ leads: LeadRecord[]; total: number }> {
-        const { page = 1, limit = 20, search, status, assignedToId, fromDate, toDate } = query;
+        const {
+            page = 1, limit = 20, search, status, assignedToId, fromDate, toDate,
+            name, phone, city, source, campaign, assignedTo, tab
+        } = query;
 
         const qb = this.leadRecordRepo
             .createQueryBuilder('lr')
@@ -224,8 +338,86 @@ export class LeadsService {
             );
         }
 
+        // Per-column specific filters
+        if (name) {
+            qb.andWhere('customer.name ILIKE :nameFilter', { nameFilter: `%${name}%` });
+        }
+        if (phone) {
+            qb.andWhere('customer.phone ILIKE :phoneFilter', { phoneFilter: `%${phone}%` });
+        }
+        if (city) {
+            qb.andWhere('customer.city ILIKE :cityFilter', { cityFilter: `%${city}%` });
+        }
+        if (source) {
+            qb.andWhere('lr.source ILIKE :sourceFilter', { sourceFilter: `%${source}%` });
+        }
+        if (campaign) {
+            qb.andWhere('lr.campaign_id ILIKE :campaignFilter', { campaignFilter: `%${campaign}%` });
+        }
+        if (assignedTo) {
+            qb.andWhere('lr.assigned_to_name ILIKE :assignedToFilter', { assignedToFilter: `%${assignedTo}%` });
+        }
+
+        // Tab logic
+        if (tab) {
+            const closedStatuses = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
+            if (tab === 'fresh') {
+                qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
+                qb.andWhere('lr.call1 IS NULL');
+            } else if (tab === 'reminder') {
+                qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
+                qb.andWhere('lr.next_action_date IS NOT NULL');
+                const today = new Date();
+                today.setHours(23, 59, 59, 999);
+                qb.andWhere('lr.next_action_date <= :today', { today });
+                qb.andWhere('lr.updated_at < lr.next_action_date');
+            } else if (tab === 'revisit') {
+                qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
+                qb.andWhere('lr.is_revisit = true');
+            } else if (tab === 'converted') {
+                qb.andWhere('lr.status LIKE :conv', { conv: 'converted:%' });
+            } else if (tab === 'dropped') {
+                qb.andWhere('lr.status = :dropped', { dropped: 'dropped' });
+            } else if (tab === 'all') {
+                qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
+            }
+        }
+
         const [leads, total] = await qb.getManyAndCount();
         return { leads, total };
+    }
+
+    // ── Get Tab Counts ────────────────────────────────────────────────────
+    async getTabCounts(requestingUser?: User, query?: LeadsQuery): Promise<Record<string, number>> {
+        const closedStatuses = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
+        const qbBase = () => {
+            const q = this.leadRecordRepo.createQueryBuilder('lr');
+            if (requestingUser?.role === UserRole.LEAD_CALLER) {
+                q.where('lr.assigned_to_id = :uid', { uid: requestingUser.id });
+            } else if (query?.assignedToId) {
+                q.where('lr.assigned_to_id = :assignedToId', { assignedToId: query.assignedToId });
+            }
+            if (query?.fromDate) q.andWhere('lr.created_at >= :fromDate', { fromDate: `${query.fromDate}T00:00:00` });
+            if (query?.toDate) q.andWhere('lr.created_at <= :toDate', { toDate: `${query.toDate}T23:59:59` });
+            return q;
+        };
+
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        const [all, fresh, reminder, revisit, converted, dropped] = await Promise.all([
+            qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).getCount(),
+            qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).andWhere('lr.call1 IS NULL').getCount(),
+            qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses })
+                .andWhere('lr.next_action_date IS NOT NULL')
+                .andWhere('lr.next_action_date <= :today', { today })
+                .andWhere('lr.updated_at < lr.next_action_date').getCount(),
+            qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).andWhere('lr.is_revisit = true').getCount(),
+            qbBase().andWhere('lr.status LIKE :conv', { conv: 'converted:%' }).getCount(),
+            qbBase().andWhere('lr.status = :dropped', { dropped: 'dropped' }).getCount(),
+        ]);
+
+        return { all, fresh, reminder, revisit, converted, dropped };
     }
 
     // ── Update (with history tracking) ────────────────────────────────────

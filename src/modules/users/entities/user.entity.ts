@@ -12,6 +12,8 @@ import { UserRole } from '../enums/user-role.enum';
 import { Level } from '../../../common/enums/level.enum';
 import { Salon } from '../../salons/entities/salon.entity';
 import { Referral } from '../../referrals/entities/referral.entity';
+import { CallerCategory } from '../enums/caller-category.enum';
+import { CallerRegion } from '../enums/caller-region.enum';
 
 @Entity('users')
 export class User {
@@ -107,6 +109,35 @@ export class User {
 
     @Column({ name: 'upi_phone', nullable: true })
     upiPhone: string;
+
+    // ── Lead Caller fields ──────────────────────────────────────────────────
+    @Column({
+        name: 'caller_category',
+        type: 'enum',
+        enum: CallerCategory,
+        nullable: true,
+    })
+    callerCategory: CallerCategory;
+
+    @Column({
+        name: 'caller_region',
+        type: 'enum',
+        enum: CallerRegion,
+        nullable: true,
+    })
+    callerRegion: CallerRegion;
+
+    /** Whether the caller has manually started their shift */
+    @Column({ name: 'is_on_shift', default: false })
+    isOnShift: boolean;
+
+    /** When the current active shift started */
+    @Column({ name: 'shift_started_at', type: 'timestamp', nullable: true })
+    shiftStartedAt: Date;
+
+    /** Used for round-robin: timestamp of the last lead assigned to this caller */
+    @Column({ name: 'last_assigned_at', type: 'timestamp', nullable: true })
+    lastAssignedAt: Date;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

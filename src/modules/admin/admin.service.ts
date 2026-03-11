@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { CallerCategory } from '../users/enums/caller-category.enum';
+import { CallerRegion } from '../users/enums/caller-region.enum';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { ReferralsService } from '../referrals/referrals.service';
@@ -11,12 +13,15 @@ import { SalonsService } from '../salons/salons.service';
 import { ReferralStatus } from '../referrals/entities/referral.entity';
 import { DiscountsService } from '../discounts/discounts.service';
 import { UsersService } from '../users/users.service';
+import { ExperienceCenter } from './entities/experience-center.entity';
 
 @Injectable()
 export class AdminService {
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(ExperienceCenter)
+        private readonly ecRepository: Repository<ExperienceCenter>,
         private readonly referralsService: ReferralsService,
         private readonly salonsService: SalonsService,
         private readonly discountsService: DiscountsService,
@@ -143,27 +148,31 @@ export class AdminService {
         email: string;
         phone: string;
         password?: string;
+        callerCategory?: CallerCategory;
+        callerRegion?: CallerRegion;
     }): Promise<Omit<User, 'passwordHash'>> {
         const existing = await this.userRepository.findOne({ where: { email: dto.email } });
         if (existing) {
             throw new ConflictException('A user with this email already exists');
         }
 
-        const rawPassword = dto.password || Math.random().toString(36).slice(-8); // auto-generate if not provided
+        const rawPassword = dto.password || Math.random().toString(36).slice(-8);
         const passwordHash = await bcrypt.hash(rawPassword, 10);
 
-        const caller = this.userRepository.create({
+        const callerData: Partial<User> = {
             name: dto.name,
             email: dto.email.trim().toLowerCase(),
             phone: normalizePhone(dto.phone),
             passwordHash,
             role: UserRole.LEAD_CALLER,
             isActive: true,
-        });
+        };
+        if (dto.callerCategory) callerData.callerCategory = dto.callerCategory;
+        if (dto.callerRegion) callerData.callerRegion = dto.callerRegion;
+
+        const caller = this.userRepository.create(callerData as any);
 
         const saved = await this.userRepository.save(caller);
-
-        // Return the new user + the plain-text password so admin can share it
         return { ...saved, passwordHash: rawPassword } as any;
     }
 
@@ -171,7 +180,11 @@ export class AdminService {
         const qb = this.userRepository
             .createQueryBuilder('user')
             .where('user.role = :role', { role: UserRole.LEAD_CALLER })
-            .select(['user.id', 'user.name', 'user.email', 'user.phone', 'user.isActive', 'user.createdAt']);
+            .select([
+                'user.id', 'user.name', 'user.email', 'user.phone',
+                'user.isActive', 'user.createdAt', 'user.callerCategory',
+                'user.callerRegion', 'user.isOnShift', 'user.shiftStartedAt',
+            ]);
 
         if (search) {
             qb.andWhere(
@@ -190,12 +203,89 @@ export class AdminService {
         return this.userRepository.save(caller);
     }
 
+    async updateLeadCaller(id: string, dto: { callerCategory?: CallerCategory; callerRegion?: CallerRegion }): Promise<User> {
+        const caller = await this.userRepository.findOne({ where: { id, role: UserRole.LEAD_CALLER } });
+        if (!caller) throw new NotFoundException('Lead caller not found');
+        if (dto.callerCategory !== undefined) caller.callerCategory = dto.callerCategory;
+        if (dto.callerRegion !== undefined) caller.callerRegion = dto.callerRegion;
+        return this.userRepository.save(caller);
+    }
+
     async resetLeadCallerPassword(id: string, newPassword: string): Promise<{ success: boolean }> {
         const caller = await this.userRepository.findOne({ where: { id, role: UserRole.LEAD_CALLER } });
         if (!caller) throw new NotFoundException('Lead caller not found');
         caller.passwordHash = await bcrypt.hash(newPassword, 10);
         await this.userRepository.save(caller);
         return { success: true };
+    }
+
+    // ── Shift Management ──────────────────────────────────────────────────
+
+    async startShift(callerId: string): Promise<User> {
+        const caller = await this.userRepository.findOne({ where: { id: callerId, role: UserRole.LEAD_CALLER } });
+        if (!caller) throw new NotFoundException('Lead caller not found');
+        caller.isOnShift = true;
+        caller.shiftStartedAt = new Date();
+        return this.userRepository.save(caller);
+    }
+
+    async endShift(callerId: string): Promise<User> {
+        const caller = await this.userRepository.findOne({ where: { id: callerId, role: UserRole.LEAD_CALLER } });
+        if (!caller) throw new NotFoundException('Lead caller not found');
+        caller.isOnShift = false;
+        return this.userRepository.save(caller);
+    }
+
+    /** Called by the cron job at 18:00 IST to auto-logout non-international callers */
+    async autoEndShifts(): Promise<void> {
+        await this.userRepository
+            .createQueryBuilder()
+            .update(User)
+            .set({ isOnShift: false })
+            .where('role = :role AND is_on_shift = true AND (caller_category IS NULL OR caller_category != :intl)', {
+                role: UserRole.LEAD_CALLER,
+                intl: CallerCategory.INTERNATIONAL_CALLER,
+            })
+            .execute();
+    }
+
+    // ── Experience Centers Management ─────────────────────────────────────
+
+    async createExperienceCenter(dto: Partial<ExperienceCenter>): Promise<ExperienceCenter> {
+        const ec = this.ecRepository.create(dto);
+        return this.ecRepository.save(ec);
+    }
+
+    async listExperienceCenters(search?: string, isActive?: boolean): Promise<ExperienceCenter[]> {
+        const qb = this.ecRepository.createQueryBuilder('ec');
+
+        if (search) {
+            qb.andWhere('(ec.name ILIKE :search OR ec.city ILIKE :search OR ec.managerName ILIKE :search)', { search: `%${search}%` });
+        }
+
+        if (isActive !== undefined) {
+            qb.andWhere('ec.isActive = :isActive', { isActive });
+        }
+
+        return qb.orderBy('ec.createdAt', 'DESC').getMany();
+    }
+
+    async updateExperienceCenter(id: string, dto: Partial<ExperienceCenter>): Promise<ExperienceCenter> {
+        const ec = await this.ecRepository.findOne({ where: { id } });
+        if (!ec) {
+            throw new NotFoundException('Experience Center not found');
+        }
+        Object.assign(ec, dto);
+        return this.ecRepository.save(ec);
+    }
+
+    async toggleExperienceCenterStatus(id: string, isActive: boolean): Promise<ExperienceCenter> {
+        const ec = await this.ecRepository.findOne({ where: { id } });
+        if (!ec) {
+            throw new NotFoundException('Experience Center not found');
+        }
+        ec.isActive = isActive;
+        return this.ecRepository.save(ec);
     }
 }
 
