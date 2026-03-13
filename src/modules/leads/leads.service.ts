@@ -32,6 +32,7 @@ export interface LeadsQuery {
     source?: string;
     campaign?: string;
     assignedTo?: string;
+    leadCategory?: string;  // EC | HT | WEBSITE | POPIN
     // Tab filter
     tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped';
 }
@@ -325,6 +326,9 @@ export class LeadsService {
         }
         if (assignedTo) {
             qb.andWhere('lr.assigned_to_name ILIKE :assignedToFilter', { assignedToFilter: `%${assignedTo}%` });
+        }
+        if (query?.leadCategory) {
+            qb.andWhere('lr.lead_category = :leadCategory', { leadCategory: query.leadCategory });
         }
 
         // Tab logic

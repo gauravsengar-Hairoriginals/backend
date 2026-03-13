@@ -67,6 +67,7 @@ export class LeadsController {
         @Query('source') source?: string,
         @Query('campaign') campaign?: string,
         @Query('assignedTo') assignedTo?: string,
+        @Query('leadCategory') leadCategory?: string,
         @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
         @CurrentUser() user?: User,
     ) {
@@ -74,7 +75,7 @@ export class LeadsController {
             page: +(page ?? 1),
             limit: +(limit ?? 20),
             search, status, assignedToId, fromDate, toDate,
-            name, phone, city, source, campaign, assignedTo, tab
+            name, phone, city, source, campaign, assignedTo, leadCategory, tab
         }, user);
     }
 
