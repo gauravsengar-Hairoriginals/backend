@@ -90,8 +90,15 @@ export class FacebookService {
             this.logger.log(`[FB] Created new form from CSV: ${formName} (${fbFormId})`);
         }
 
-        // 5. Ingest data
-        return this.ingestCsvData(form, records);
+        // 5. Return the newly created form — do NOT ingest data here.
+        // The admin must first set the category via "Map Fields",
+        // then upload leads using "Upload CSV" on the existing form.
+        return {
+            success: true,
+            formId: form.id,
+            formName: form.formName,
+            message: `Form "${form.formName}" created. Please set the Category in Map Fields, then upload the CSV leads.`,
+        };
     }
 
     async processCsvForExistingForm(formId: string, file: Express.Multer.File) {
