@@ -95,7 +95,15 @@ export class LeadsController {
         return this.leadsService.getCallerAgingDashboard();
     }
 
-    // ── Admin: auto-assign all unassigned leads round-robin ───────────────────
+    // ── Admin: auto-assign preview (dry-run, no DB changes) ──────────────────
+    @Get('auto-assign/preview')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    autoAssignPreview() {
+        return this.leadsService.autoAssignPreview();
+    }
+
+    // ── Admin: auto-assign commit (writes to DB) ──────────────────────────────
     @Post('auto-assign')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
