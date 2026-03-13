@@ -782,27 +782,41 @@ export class LeadsService {
 
     // ── Shared computation for auto-assign (dry-run or commit) ───────────────
     private async _computeAutoAssign() {
-        const LEAD_TO_CALLER_CAT: Record<string, string> = {
-            EC:      'EC_CALLER',
-            HT:      'HT_CALLER',
-            WEBSITE: 'WEBSITE_CALLER',
-            POPIN:   'POPIN_CALLER',
-        };
-
+        // ── 1. Load all active lead callers ───────────────────────────────────
         const allCallers = await this.userRepo.find({
             where: { role: UserRole.LEAD_CALLER, isActive: true },
             order: { name: 'ASC' },
         });
         if (allCallers.length === 0)
-            throw new BadRequestException('No lead callers found in the system');
+            throw new BadRequestException('No active lead callers found in the system');
 
-        const callerPools: Record<string, User[]> = {};
+        // ── 2. Build lookup pools keyed by "callerCategory|callerRegion" ──────
+        // Pool keys:
+        //   "EC_CALLER|DELHI_NCR"   → callers in EC category AND Delhi NCR region
+        //   "EC_CALLER|__any__"     → all callers in EC category (any region)
+        //   "__all__"               → all callers (final fallback)
+        const poolMap: Record<string, User[]> = { '__all__': allCallers };
+
         for (const caller of allCallers) {
-            const cat = caller.callerCategory ?? 'UNSPECIFIED';
-            if (!callerPools[cat]) callerPools[cat] = [];
-            callerPools[cat].push(caller);
+            const cat    = caller.callerCategory ?? null;
+            const region = caller.callerRegion   ?? null;
+
+            if (cat) {
+                // Category-only pool (cat|__any__)
+                const catKey = `${cat}|__any__`;
+                if (!poolMap[catKey]) poolMap[catKey] = [];
+                poolMap[catKey].push(caller);
+
+                // Category + region pool (cat|region)
+                if (region) {
+                    const bothKey = `${cat}|${region}`;
+                    if (!poolMap[bothKey]) poolMap[bothKey] = [];
+                    poolMap[bothKey].push(caller);
+                }
+            }
         }
 
+        // ── 3. Fetch all unassigned, non-closed leads (oldest first) ──────────
         const unassigned = await this.leadRecordRepo.find({
             where: {
                 assignedToId: IsNull(),
@@ -811,36 +825,58 @@ export class LeadsService {
             order: { createdAt: 'ASC' },
         });
 
+        // ── 4. Route each lead through the 3-tier matching ───────────────────
         const poolCounters: Record<string, number> = {};
-        const callerCountMap: Record<string, { count: number; categories: Set<string>; callerId: string }> = {};
+        const callerCountMap: Record<string, { count: number; categories: Set<string>; regions: Set<string>; callerId: string }> = {};
         const assignments: Array<{ lead: typeof unassigned[0]; caller: User }> = [];
         let unroutable = 0;
 
-        for (const lead of unassigned) {
-            const leadCat = lead.leadCategory ?? '';
-            const targetCallerCat = LEAD_TO_CALLER_CAT[leadCat];
-            const pool = (targetCallerCat && callerPools[targetCallerCat]?.length > 0)
-                ? callerPools[targetCallerCat]
-                : allCallers;
-
-            if (pool.length === 0) { unroutable++; continue; }
-
-            const poolKey = targetCallerCat ?? '__all__';
+        const pickFromPool = (poolKey: string): User | null => {
+            const pool = poolMap[poolKey];
+            if (!pool || pool.length === 0) return null;
             if (poolCounters[poolKey] === undefined) poolCounters[poolKey] = 0;
             const caller = pool[poolCounters[poolKey] % pool.length];
             poolCounters[poolKey]++;
+            return caller;
+        };
+
+        for (const lead of unassigned) {
+            const leadCat    = (lead.leadCategory ?? '').trim().toUpperCase();
+            const leadCity   = lead.customer?.city ?? '';
+            const leadRegion = this.categorisation.cityToRegion(leadCity); // CallerRegion enum
+
+            const targetCallerCat = this.categorisation.callerCategoryFor(leadCat); // CallerCategory | undefined
+
+            let caller: User | null = null;
+
+            if (targetCallerCat) {
+                // Tier 1: category + region (most specific)
+                caller = pickFromPool(`${targetCallerCat}|${leadRegion}`);
+
+                // Tier 2: category only (any region)
+                if (!caller) caller = pickFromPool(`${targetCallerCat}|__any__`);
+            }
+
+            // No match → leave unassigned (admin will assign manually)
+            if (!caller) { unroutable++; continue; }
 
             assignments.push({ lead, caller });
 
             if (!callerCountMap[caller.id])
-                callerCountMap[caller.id] = { count: 0, categories: new Set(), callerId: caller.id };
+                callerCountMap[caller.id] = { count: 0, categories: new Set(), regions: new Set(), callerId: caller.id };
             callerCountMap[caller.id].count++;
             callerCountMap[caller.id].categories.add(leadCat || 'Uncategorised');
+            callerCountMap[caller.id].regions.add(leadRegion);
         }
 
-        const breakdown = Object.entries(callerCountMap).map(([, { count, categories, callerId }]) => {
-            const caller = allCallers.find(c => c.id === callerId)!;
-            return { callerName: caller.name, count, categories: Array.from(categories) };
+        const breakdown = Object.entries(callerCountMap).map(([, info]) => {
+            const caller = allCallers.find(c => c.id === info.callerId)!;
+            return {
+                callerName: caller.name,
+                count: info.count,
+                categories: Array.from(info.categories),
+                regions: Array.from(info.regions),
+            };
         });
 
         return { assignments, breakdown, unroutable, totalUnassigned: unassigned.length, callers: allCallers.length };
