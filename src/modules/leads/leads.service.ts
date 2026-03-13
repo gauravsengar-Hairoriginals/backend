@@ -5,7 +5,7 @@ import {
     BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull, Not, In } from 'typeorm';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -803,14 +803,13 @@ export class LeadsService {
             callerPools[cat].push(caller);
         }
 
-        const unassigned = await this.leadRecordRepo
-            .createQueryBuilder('lr')
-            .where('lr.assignedToId IS NULL')
-            .andWhere('lr.status NOT IN (:...closedStatuses)', {
-                closedStatuses: ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'],
-            })
-            .orderBy('lr.createdAt', 'ASC')
-            .getMany();
+        const unassigned = await this.leadRecordRepo.find({
+            where: {
+                assignedToId: IsNull(),
+                status: Not(In(['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'])),
+            },
+            order: { createdAt: 'ASC' },
+        });
 
         const poolCounters: Record<string, number> = {};
         const callerCountMap: Record<string, { count: number; categories: Set<string>; callerId: string }> = {};
