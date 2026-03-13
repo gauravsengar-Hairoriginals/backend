@@ -65,6 +65,30 @@ export class AdminService {
         });
     }
 
+    async toggleAdminStatus(id: string): Promise<{ isActive: boolean }> {
+        const user = await this.userRepository.findOne({ where: { id } });
+        if (!user) throw new NotFoundException('Admin not found');
+        user.isActive = !user.isActive;
+        await this.userRepository.save(user);
+        return { isActive: user.isActive };
+    }
+
+    async resetAdminPassword(id: string): Promise<{ temporaryPassword: string }> {
+        const user = await this.userRepository.findOne({ where: { id } });
+        if (!user) throw new NotFoundException('Admin not found');
+        const temporaryPassword = Math.random().toString(36).slice(-10);
+        user.passwordHash = await bcrypt.hash(temporaryPassword, 10);
+        await this.userRepository.save(user);
+        return { temporaryPassword };
+    }
+
+    async updateAdminPermissions(id: string, permissions: string[]): Promise<User> {
+        const user = await this.userRepository.findOne({ where: { id } });
+        if (!user) throw new NotFoundException('Admin not found');
+        user.permissions = permissions;
+        return this.userRepository.save(user);
+    }
+
     async listStylists(search?: string, status?: string): Promise<User[]> {
         const query = this.userRepository.createQueryBuilder('user')
             .where('user.role = :role', { role: UserRole.STYLIST })

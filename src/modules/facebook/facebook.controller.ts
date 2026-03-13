@@ -128,15 +128,15 @@ export class FacebookController {
         return this.facebookService.processCsvForExistingForm(formId, file);
     }
 
-    // ── Form Mapping & Sync ───────────────────────────────────────────────
+    @Patch('forms/:formId/mapping')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
     @ApiBearerAuth()
     async updateMapping(
         @Param('formId') formId: string,
-        @Body() body: { fieldMapping: Record<string, string> },
+        @Body() body: { fieldMapping: Record<string, string>; leadCategory?: string },
     ) {
-        return this.facebookService.updateMapping(formId, body.fieldMapping);
+        return this.facebookService.updateMapping(formId, body.fieldMapping, body.leadCategory);
     }
 
     @Patch('forms/:formId/sync')

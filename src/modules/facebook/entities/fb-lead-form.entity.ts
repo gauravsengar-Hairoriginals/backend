@@ -26,6 +26,9 @@ export class FbLeadForm {
     @Column({ name: 'sync_enabled', default: false })
     syncEnabled: boolean;
 
+    @Column({ name: 'lead_category', nullable: true })
+    leadCategory: string;
+
     @Column({ name: 'questions', type: 'jsonb', default: [] })
     questions: Record<string, any>[];
 

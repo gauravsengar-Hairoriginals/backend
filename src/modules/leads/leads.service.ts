@@ -9,14 +9,13 @@ import { Repository, DataSource } from 'typeorm';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
-import { CallerCategory } from '../users/enums/caller-category.enum';
-import { CallerRegion } from '../users/enums/caller-region.enum';
 import { LeadRecord, LeadStatus } from './entities/lead-record.entity';
 import { LeadHistory } from './entities/lead-history.entity';
 import { LeadProduct } from './entities/lead-product.entity';
 import { LeadProductOption } from './entities/lead-product-option.entity';
 import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, CreateLeadProductDto } from './dto/create-lead.dto';
 import { normalizePhone } from '../../common/utils/phone.util';
+import { LeadCategorisationService } from '../../common/services/lead-categorisation.service';
 
 export interface LeadsQuery {
     page?: number;
@@ -87,37 +86,6 @@ function buildLeadProducts(dtoProducts: CreateLeadProductDto[], leadRecordId: st
     });
 }
 
-// ── Lead Category Derivation ──────────────────────────────────────────────────
-/** Derive lead category from source and pageType strings */
-function deriveLeadCategory(source?: string, pageType?: string): string {
-    const haystack = `${source ?? ''} ${pageType ?? ''}`.toLowerCase();
-    if (haystack.includes('ec')) return 'EC';
-    if (haystack.includes('ht')) return 'HT';
-    if ((source ?? '').toLowerCase() === 'popins' || haystack.includes('popin')) return 'POPIN';
-    return 'WEBSITE';
-}
-
-// ── City → Region Mapping ─────────────────────────────────────────────────
-const DELHI_NCR_CITIES = ['delhi', 'noida', 'gurugram', 'gurgaon', 'ghaziabad', 'faridabad', 'greater noida'];
-const HYDERABAD_CITIES = ['hyderabad', 'secunderabad', 'cyberabad'];
-const MUMBAI_CITIES = ['mumbai', 'thane', 'navi mumbai', 'kalyan', 'dombivli'];
-
-function cityToRegion(city?: string): CallerRegion {
-    if (!city) return CallerRegion.REST_OF_INDIA;
-    const lower = city.toLowerCase();
-    if (DELHI_NCR_CITIES.some(c => lower.includes(c))) return CallerRegion.DELHI_NCR;
-    if (HYDERABAD_CITIES.some(c => lower.includes(c))) return CallerRegion.HYDERABAD;
-    if (MUMBAI_CITIES.some(c => lower.includes(c))) return CallerRegion.MUMBAI;
-    return CallerRegion.REST_OF_INDIA;
-}
-
-/** Map lead category string to the CallerCategory that handles it */
-const LEAD_CAT_TO_CALLER_CAT: Record<string, CallerCategory> = {
-    EC: CallerCategory.EC_CALLER,
-    HT: CallerCategory.HT_CALLER,
-    WEBSITE: CallerCategory.WEBSITE_CALLER,
-    POPIN: CallerCategory.POPIN_CALLER,
-};
 
 @Injectable()
 export class LeadsService {
@@ -135,6 +103,7 @@ export class LeadsService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly dataSource: DataSource,
+        private readonly categorisation: LeadCategorisationService,
     ) { }
 
     // ── Create ────────────────────────────────────────────────────────────
@@ -174,7 +143,7 @@ export class LeadsService {
                 customerId: customer.id,
                 source: dto.source,
                 pageType: dto.pageType,
-                leadCategory: deriveLeadCategory(dto.source, dto.pageType),
+                leadCategory: this.categorisation.deriveLeadCategory(dto.source, dto.pageType, (dto as any).leadCategory),
                 campaignId: dto.campaignId,
                 specificDetails: dto.specificDetails,
                 preferredExperienceCenter: dto.preferredExperienceCenter,
@@ -241,7 +210,7 @@ export class LeadsService {
         const category = freshLead.leadCategory;
         if (!category) return;
 
-        const callerCategory = LEAD_CAT_TO_CALLER_CAT[category];
+        const callerCategory = this.categorisation.callerCategoryFor(category);
         if (!callerCategory) return;
 
         let assignedUserId: string | null = null;
@@ -262,7 +231,7 @@ export class LeadsService {
             }
         } else {
             // Round-robin by caller category + region
-            const region = cityToRegion(freshLead.customer?.city);
+            const region = this.categorisation.cityToRegion(freshLead.customer?.city);
             const callers = await this.userRepo
                 .createQueryBuilder('u')
                 .where('u.role = :role', { role: UserRole.LEAD_CALLER })

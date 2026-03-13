@@ -153,6 +153,7 @@ export class FacebookService {
             const dto: Record<string, any> = {
                 source: 'facebook',
                 pageType: 'facebook_lead_form_csv',
+                leadCategory: form.leadCategory || undefined,
                 campaignId: form.formName,
                 specificDetails: {
                     fb_form_id: form.fbFormId,
@@ -368,6 +369,7 @@ export class FacebookService {
         const dto: Record<string, any> = {
             source: 'facebook',
             pageType: 'facebook_lead_form',
+            leadCategory: form.leadCategory || undefined,
             campaignId: form.formName,
             specificDetails: {
                 fb_form_id: form.fbFormId,
@@ -514,11 +516,12 @@ export class FacebookService {
         return this.fbLeadFormRepo.find({ order: { createdAt: 'DESC' } });
     }
 
-    async updateMapping(formId: string, fieldMapping: Record<string, string>): Promise<FbLeadForm> {
+    async updateMapping(formId: string, fieldMapping: Record<string, string>, leadCategory?: string): Promise<FbLeadForm> {
         const form = await this.fbLeadFormRepo.findOne({ where: { id: formId } });
         if (!form) throw new NotFoundException('Form not found');
 
         form.fieldMapping = fieldMapping;
+        if (leadCategory !== undefined) form.leadCategory = leadCategory;
         return this.fbLeadFormRepo.save(form);
     }
 

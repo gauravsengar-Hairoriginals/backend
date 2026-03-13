@@ -35,6 +35,27 @@ export class AdminController {
         return this.adminService.listAdmins();
     }
 
+    // Toggle admin active status
+    @Post('users/:id/toggle-status')
+    @Roles(UserRole.SUPER_ADMIN)
+    async toggleAdminStatus(@Param('id') id: string) {
+        return this.adminService.toggleAdminStatus(id);
+    }
+
+    // Reset admin password
+    @Post('users/:id/reset-password')
+    @Roles(UserRole.SUPER_ADMIN)
+    async resetAdminPassword(@Param('id') id: string) {
+        return this.adminService.resetAdminPassword(id);
+    }
+
+    // Update admin permissions
+    @Post('users/:id/permissions')
+    @Roles(UserRole.SUPER_ADMIN)
+    async updateAdminPermissions(@Param('id') id: string, @Body() body: { permissions: string[] }) {
+        return this.adminService.updateAdminPermissions(id, body.permissions);
+    }
+
     // Stylist Management
     @Get('stylists')
     @RequirePermissions('MANAGE_STYLISTS')
