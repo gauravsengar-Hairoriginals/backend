@@ -79,6 +79,30 @@ export class LeadsController {
         }, user);
     }
 
+    // ── Admin: aging dashboard ────────────────────────────────────────────────
+    @Get('aging-dashboard')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    getAgingDashboard() {
+        return this.leadsService.getAgingDashboard();
+    }
+
+    // ── Admin: caller aging dashboard ─────────────────────────────────────────
+    @Get('caller-aging-dashboard')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    getCallerAgingDashboard() {
+        return this.leadsService.getCallerAgingDashboard();
+    }
+
+    // ── Admin: auto-assign all unassigned leads round-robin ───────────────────
+    @Post('auto-assign')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    autoAssign() {
+        return this.leadsService.autoAssign();
+    }
+
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────
     @Patch('bulk-assign')
     @UseGuards(JwtAuthGuard, RolesGuard)

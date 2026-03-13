@@ -621,6 +621,263 @@ export class LeadsService {
         }) as Promise<LeadRecord>;
     }
 
+    // ── Aging Dashboard ───────────────────────────────────────────────────
+    async getAgingDashboard(): Promise<any> {
+        const CATEGORIES = ['EC', 'HT', 'WEBSITE', 'POPIN', 'OTHER'];
+        const CLOSED = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
+        const now = Date.now();
+
+        // Pull all non-closed leads with just the columns we need
+        const leads = await this.leadRecordRepo
+            .createQueryBuilder('lr')
+            .select([
+                'lr.id', 'lr.lead_category', 'lr.status', 'lr.call1', 'lr.call2',
+                'lr.call3', 'lr.next_action_date', 'lr.is_revisit', 'lr.created_at',
+            ])
+            .where('lr.status NOT IN (:...closed)', { closed: CLOSED })
+            .getRawMany();
+
+        // Helper: derive stage
+        const getStage = (row: any): string => {
+            if (row.lr_is_revisit) return 'revisit';
+            if (row.lr_next_action_date && new Date(row.lr_next_action_date) <= new Date()) return 'reminder';
+            if (!row.lr_call1) return 'fresh';
+            return 'contacted';
+        };
+
+        // Helper: aging bucket
+        const getBucket = (createdAt: string): string => {
+            const days = Math.floor((now - new Date(createdAt).getTime()) / 86400000);
+            if (days <= 3)  return '0-3d';
+            if (days <= 7)  return '4-7d';
+            if (days <= 14) return '8-14d';
+            if (days <= 30) return '15-30d';
+            return '30d+';
+        };
+
+        const BUCKETS  = ['0-3d', '4-7d', '8-14d', '15-30d', '30d+'];
+        const STAGES   = ['fresh', 'contacted', 'reminder', 'revisit'];
+
+        // Build per-category data
+        const result = CATEGORIES.map(cat => {
+            const catLeads = leads.filter(l => {
+                const lc = (l.lr_lead_category ?? '').trim().toUpperCase();
+                return cat === 'OTHER' ? !['EC', 'HT', 'WEBSITE', 'POPIN'].includes(lc) : lc === cat;
+            });
+
+            if (catLeads.length === 0) return null;
+
+            let totalAgingDays = 0;
+            // stage → bucket → count
+            const grid: Record<string, Record<string, number>> = {};
+            STAGES.forEach(s => { grid[s] = {}; BUCKETS.forEach(b => { grid[s][b] = 0; }); });
+
+            for (const lead of catLeads) {
+                const stage  = getStage(lead);
+                const bucket = getBucket(lead.lr_created_at);
+                if (grid[stage]) grid[stage][bucket] = (grid[stage][bucket] ?? 0) + 1;
+                totalAgingDays += Math.floor((now - new Date(lead.lr_created_at).getTime()) / 86400000);
+            }
+
+            return {
+                category: cat,
+                total: catLeads.length,
+                avgAgingDays: +(totalAgingDays / catLeads.length).toFixed(1),
+                buckets: BUCKETS,
+                stages: STAGES.map(stage => ({
+                    stage,
+                    total: BUCKETS.reduce((s, b) => s + grid[stage][b], 0),
+                    bucketCounts: BUCKETS.map(b => grid[stage][b]),
+                })),
+            };
+        }).filter(Boolean);
+
+        return { categories: result };
+    }
+
+    // ── Caller Aging Dashboard ────────────────────────────────────────────────
+    async getCallerAgingDashboard(): Promise<any> {
+        const CLOSED = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
+        const now = Date.now();
+
+        const leads = await this.leadRecordRepo
+            .createQueryBuilder('lr')
+            .select([
+                'lr.id', 'lr.lead_category', 'lr.status', 'lr.call1',
+                'lr.next_action_date', 'lr.is_revisit', 'lr.created_at',
+                'lr.assigned_to_id', 'lr.assigned_to_name',
+            ])
+            .where('lr.status NOT IN (:...closed)', { closed: CLOSED })
+            .getRawMany();
+
+        const getStage = (row: any): string => {
+            if (row.lr_is_revisit) return 'revisit';
+            if (row.lr_next_action_date && new Date(row.lr_next_action_date) <= new Date()) return 'reminder';
+            if (!row.lr_call1) return 'fresh';
+            return 'contacted';
+        };
+
+        const getBucket = (createdAt: string): string => {
+            const days = Math.floor((now - new Date(createdAt).getTime()) / 86400000);
+            if (days <= 3)  return '0-3d';
+            if (days <= 7)  return '4-7d';
+            if (days <= 14) return '8-14d';
+            if (days <= 30) return '15-30d';
+            return '30d+';
+        };
+
+        const BUCKETS = ['0-3d', '4-7d', '8-14d', '15-30d', '30d+'];
+        const STAGES  = ['fresh', 'contacted', 'reminder', 'revisit'];
+
+        // Group leads by caller
+        const callerMap: Record<string, { name: string; leads: any[] }> = {};
+        for (const lead of leads) {
+            const callerId = lead.lr_assigned_to_id ?? '__unassigned__';
+            const callerName = lead.lr_assigned_to_name ?? 'Unassigned';
+            if (!callerMap[callerId]) callerMap[callerId] = { name: callerName, leads: [] };
+            callerMap[callerId].leads.push(lead);
+        }
+
+        const result = Object.entries(callerMap)
+            .map(([callerId, { name, leads: callerLeads }]) => {
+                let totalAgingDays = 0;
+                const grid: Record<string, Record<string, number>> = {};
+                STAGES.forEach(s => { grid[s] = {}; BUCKETS.forEach(b => { grid[s][b] = 0; }); });
+
+                for (const lead of callerLeads) {
+                    const stage  = getStage(lead);
+                    const bucket = getBucket(lead.lr_created_at);
+                    grid[stage][bucket] = (grid[stage][bucket] ?? 0) + 1;
+                    totalAgingDays += Math.floor((now - new Date(lead.lr_created_at).getTime()) / 86400000);
+                }
+
+                return {
+                    callerId,
+                    callerName: name,
+                    total: callerLeads.length,
+                    avgAgingDays: +(totalAgingDays / callerLeads.length).toFixed(1),
+                    buckets: BUCKETS,
+                    stages: STAGES.map(stage => ({
+                        stage,
+                        total: BUCKETS.reduce((s, b) => s + grid[stage][b], 0),
+                        bucketCounts: BUCKETS.map(b => grid[stage][b]),
+                    })),
+                };
+            })
+            // Sort: unassigned last, rest by total desc
+            .sort((a, b) => {
+                if (a.callerId === '__unassigned__') return 1;
+                if (b.callerId === '__unassigned__') return -1;
+                return b.total - a.total;
+            });
+
+        return { callers: result };
+    }
+
+    // ── Auto-Assign (smart: category-matched + round-robin fallback) ───────
+    async autoAssign(): Promise<{
+        assigned: number;
+        callers: number;
+        breakdown: { callerName: string; count: number; categories: string[] }[];
+        unroutable: number;
+    }> {
+        // ── Lead category → CallerCategory mapping ────────────────────────
+        const LEAD_TO_CALLER_CAT: Record<string, string> = {
+            EC:      'EC_CALLER',
+            HT:      'HT_CALLER',
+            WEBSITE: 'WEBSITE_CALLER',
+            POPIN:   'POPIN_CALLER',
+        };
+
+        // 1. Fetch all LEAD_CALLER users with their category/region
+        const allCallers = await this.userRepo.find({
+            where: { role: UserRole.LEAD_CALLER },
+            order: { name: 'ASC' },
+        });
+        if (allCallers.length === 0)
+            throw new BadRequestException('No lead callers found in the system');
+
+        // Build per-callerCategory pools: { EC_CALLER: [u1, u2], HT_CALLER: [...], ... }
+        const callerPools: Record<string, User[]> = {};
+        for (const caller of allCallers) {
+            const cat = caller.callerCategory ?? 'UNSPECIFIED';
+            if (!callerPools[cat]) callerPools[cat] = [];
+            callerPools[cat].push(caller);
+        }
+
+        // Round-robin counters per pool (so each pool distributes evenly among its callers)
+        const poolCounters: Record<string, number> = {};
+
+        // 2. Fetch all unassigned, non-closed leads (oldest first)
+        const unassigned = await this.leadRecordRepo
+            .createQueryBuilder('lr')
+            .where('lr.assigned_to_id IS NULL')
+            .andWhere('lr.status NOT IN (:...closedStatuses)', {
+                closedStatuses: [
+                    'dropped',
+                    'converted:Marked to EC',
+                    'converted:Marked to HT',
+                    'converted:Marked to VC',
+                ],
+            })
+            .orderBy('lr.created_at', 'ASC')
+            .getMany();
+
+        if (unassigned.length === 0)
+            return { assigned: 0, callers: allCallers.length, breakdown: [], unroutable: 0 };
+
+        // 3. Assign each lead using its category to pick the right caller pool
+        const callerCountMap: Record<string, { count: number; categories: Set<string> }> = {};
+        const historyEntries: Partial<LeadHistory>[] = [];
+        let unroutable = 0;
+
+        for (const lead of unassigned) {
+            const leadCat = lead.leadCategory ?? '';   // e.g. 'EC', 'HT', '', null
+            const targetCallerCat = LEAD_TO_CALLER_CAT[leadCat];  // e.g. 'EC_CALLER'
+
+            // Prefer matched pool → fallback to all callers
+            const pool = (targetCallerCat && callerPools[targetCallerCat]?.length > 0)
+                ? callerPools[targetCallerCat]
+                : allCallers;
+
+            if (pool.length === 0) { unroutable++; continue; }
+
+            // Pick next caller in this pool (round-robin)
+            const poolKey = targetCallerCat ?? '__all__';
+            if (poolCounters[poolKey] === undefined) poolCounters[poolKey] = 0;
+            const caller = pool[poolCounters[poolKey] % pool.length];
+            poolCounters[poolKey]++;
+
+            lead.assignedToId = caller.id;
+            lead.assignedToName = caller.name;
+
+            if (!callerCountMap[caller.name]) callerCountMap[caller.name] = { count: 0, categories: new Set() };
+            callerCountMap[caller.name].count++;
+            callerCountMap[caller.name].categories.add(leadCat || 'Uncategorised');
+
+            historyEntries.push({
+                leadRecordId: lead.id,
+                fieldName: 'Assigned To',
+                oldValue: '',
+                newValue: caller.name,
+            });
+        }
+
+        await this.leadRecordRepo.save(unassigned);
+        if (historyEntries.length > 0)
+            await this.leadHistoryRepo.save(historyEntries.map(e => this.leadHistoryRepo.create(e)));
+
+        const breakdown = Object.entries(callerCountMap).map(([callerName, { count, categories }]) => ({
+            callerName,
+            count,
+            categories: Array.from(categories),
+        }));
+
+        const assigned = unassigned.length - unroutable;
+        this.logger.log(`Smart auto-assigned ${assigned}/${unassigned.length} leads across ${allCallers.length} callers (${unroutable} unroutable)`);
+        return { assigned, callers: allCallers.length, breakdown, unroutable };
+    }
+
     // ── Bulk Assign ───────────────────────────────────────────────────────
     async bulkAssign(leadIds: string[], callerId: string): Promise<{ updated: number }> {
         const caller = await this.userRepo.findOne({
