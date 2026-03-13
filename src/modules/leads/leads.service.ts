@@ -790,7 +790,7 @@ export class LeadsService {
         };
 
         const allCallers = await this.userRepo.find({
-            where: { role: UserRole.LEAD_CALLER },
+            where: { role: UserRole.LEAD_CALLER, isActive: true },
             order: { name: 'ASC' },
         });
         if (allCallers.length === 0)
