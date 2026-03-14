@@ -221,15 +221,18 @@ export class CallLogsService {
         const agentNumber  = params['agent_number']  ?? params['agentNumber']  ?? '';
         const duration     = params['total_call_duration'] ?? params['totalCallDuration'] ?? '';
         const callId       = params['call_id'] ?? params['callId'] ?? '';
+        const startTime    = params['call_start_time'] ?? params['callStartTime'] ?? '';
+        const endTime      = params['call_end_time']   ?? params['callEndTime']   ?? '';
 
         const payload = {
-            Direction:   'Outbound',
-            ResourceURL: recordingUrl,
-            // Additional context fields
-            CallerNumber: callerNumber,
-            AgentNumber:  agentNumber,
-            Duration:     duration,
-            CallId:       callId,
+            Direction:         'Outbound',
+            ResourceURL:       recordingUrl,
+            DestinationNumber: callerNumber,
+            SourceNumber:      agentNumber,
+            StartTime:         startTime,
+            EndTime:           endTime,
+            Duration:          duration,
+            CallId:            callId,
         };
 
         this.logger.log(`[LEADSQUARED] Notifying — CallId=${callId} RecordingURL=${recordingUrl || '(none)'}`);
