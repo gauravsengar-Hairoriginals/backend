@@ -12,6 +12,12 @@ import { LeadRecord, LeadStatus } from '../leads/entities/lead-record.entity';
 export class CallLogsService {
     private readonly logger = new Logger(CallLogsService.name);
 
+    // LeadSquared telephony log endpoint (fire-and-forget after every call)
+    private readonly LEADSQUARED_URL =
+        'https://asyncapi-in21.leadsquared.com/2/api/telephony/logcallcomplete' +
+        '/24fc022536446383951c3a0d8c2fc14466/edb0135a-39e0-49f1-af3a-4b50e0e27b3a' +
+        '?xapikey=uOMsRIeihT9iNfPZjOG6E96RjBEV4slg2IPXZniq';
+
     constructor(
         @InjectRepository(CallLog)
         private readonly callLogRepo: Repository<CallLog>,
@@ -70,7 +76,12 @@ export class CallLogsService {
 
         // ── Update existing pending record ────────────────────────────────────
         await this.applyCallbackFields(record.id, params);
-        this.logger.log(`[CALLBACK] ✅ Call log ${record.id} updated → ${this.isMissed(params) ? 'missed' : 'completed'}`);
+        const status = this.isMissed(params) ? 'missed' : 'completed';
+        this.logger.log(`[CALLBACK] ✅ Call log ${record.id} updated → ${status}`);
+
+        // Notify LeadSquared (fire-and-forget)
+        this.notifyLeadSquared(params);
+
         return { success: true };
     }
 
@@ -191,9 +202,56 @@ export class CallLogsService {
         );
         this.logger.log(`[INBOUND] Step 6: ✅ Created call log id=${callLog.id}, status=${callLog.status}`);
         this.logger.log(`[INBOUND] ✅ COMPLETE — Lead=${lead.id} Customer=${customer.id} CallLog=${callLog.id}`);
+
+        // Notify LeadSquared (fire-and-forget)
+        this.notifyLeadSquared(params);
     }
 
-    // ── Private: apply callback fields to an existing call_log row ─────────────
+    // ── Private: fire-and-forget POST to LeadSquared telephony API ─────────────
+    private notifyLeadSquared(params: Record<string, string>): void {
+        // Only forward Outbound calls to LeadSquared
+        const direction = params['direction'] ?? params['Direction'] ?? '';
+        if (direction.toLowerCase() !== 'outbound') {
+            this.logger.log(`[LEADSQUARED] Skipping — direction="${direction || '(not set)'}" (only Outbound calls are forwarded)`);
+            return;
+        }
+
+        const recordingUrl = params['call_recording_url'] ?? params['callRecordingUrl'] ?? '';
+        const callerNumber = params['caller_number'] ?? params['callerNumber'] ?? '';
+        const agentNumber  = params['agent_number']  ?? params['agentNumber']  ?? '';
+        const duration     = params['total_call_duration'] ?? params['totalCallDuration'] ?? '';
+        const callId       = params['call_id'] ?? params['callId'] ?? '';
+
+        const payload = {
+            Direction:   'Outbound',
+            ResourceURL: recordingUrl,
+            // Additional context fields
+            CallerNumber: callerNumber,
+            AgentNumber:  agentNumber,
+            Duration:     duration,
+            CallId:       callId,
+        };
+
+        this.logger.log(`[LEADSQUARED] Notifying — CallId=${callId} RecordingURL=${recordingUrl || '(none)'}`);
+
+        fetch(this.LEADSQUARED_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(async (res) => {
+                const text = await res.text();
+                if (res.ok) {
+                    this.logger.log(`[LEADSQUARED] ✅ Success (${res.status}): ${text}`);
+                } else {
+                    this.logger.warn(`[LEADSQUARED] ⚠️ Non-OK response (${res.status}): ${text}`);
+                }
+            })
+            .catch((err: Error) => {
+                this.logger.error(`[LEADSQUARED] ❌ Failed to notify: ${err.message}`);
+            });
+    }
+
     private async applyCallbackFields(id: string, params: Record<string, string>): Promise<void> {
         const parseDate = (v?: string) => (v ? new Date(v) : undefined);
         const parseNum = (v?: string) => (v != null ? parseInt(v, 10) : undefined);
