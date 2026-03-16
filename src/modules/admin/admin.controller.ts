@@ -7,6 +7,7 @@ import { Roles } from '../../modules/auth/decorators/roles.decorator';
 import { UserRole } from '../../modules/users/enums/user-role.enum';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateLeadCallerDto } from './dto/update-lead-caller.dto';
 import { User } from '../../modules/users/entities/user.entity';
 import { CurrentUser } from '../../modules/auth/decorators/current-user.decorator';
 
@@ -182,7 +183,7 @@ export class AdminController {
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
     async updateLeadCaller(
         @Param('id') id: string,
-        @Body() body: any,
+        @Body() body: UpdateLeadCallerDto,
     ) {
         return this.adminService.updateLeadCaller(id, body);
     }

@@ -8,6 +8,7 @@ import { CallerCategory } from '../users/enums/caller-category.enum';
 import { CallerRegion } from '../users/enums/caller-region.enum';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { UpdateLeadCallerDto } from './dto/update-lead-caller.dto';
 import { ReferralsService } from '../referrals/referrals.service';
 import { SalonsService } from '../salons/salons.service';
 import { ReferralStatus } from '../referrals/entities/referral.entity';
@@ -227,11 +228,25 @@ export class AdminService {
         return this.userRepository.save(caller);
     }
 
-    async updateLeadCaller(id: string, dto: { callerCategory?: CallerCategory; callerRegion?: CallerRegion }): Promise<User> {
+    async updateLeadCaller(id: string, dto: UpdateLeadCallerDto): Promise<User> {
         const caller = await this.userRepository.findOne({ where: { id, role: UserRole.LEAD_CALLER } });
         if (!caller) throw new NotFoundException('Lead caller not found');
+
+        // Guard against duplicate email
+        if (dto.email && dto.email.trim().toLowerCase() !== caller.email) {
+            const conflict = await this.userRepository.findOne({ where: { email: dto.email.trim().toLowerCase() } });
+            if (conflict) throw new ConflictException('Email already in use by another user');
+        }
+
+        if (dto.name)                        caller.name           = dto.name.trim();
+        if (dto.email)                       caller.email          = dto.email.trim().toLowerCase();
+        if (dto.phone)                       caller.phone          = normalizePhone(dto.phone);
         if (dto.callerCategory !== undefined) caller.callerCategory = dto.callerCategory;
-        if (dto.callerRegion !== undefined) caller.callerRegion = dto.callerRegion;
+        if (dto.callerRegion   !== undefined) caller.callerRegion   = dto.callerRegion;
+        if (dto.password && dto.password.trim()) {
+            caller.passwordHash = await bcrypt.hash(dto.password.trim(), 10);
+        }
+
         return this.userRepository.save(caller);
     }
 
