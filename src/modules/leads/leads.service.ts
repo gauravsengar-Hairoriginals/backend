@@ -144,7 +144,7 @@ export class LeadsService {
                 customerId: customer.id,
                 source: dto.source,
                 pageType: dto.pageType,
-                leadCategory: this.categorisation.deriveLeadCategory(dto.source, dto.pageType, (dto as any).leadCategory),
+                leadCategory: this.categorisation.deriveLeadCategory(dto.source, dto.pageType, dto.leadCategory),
                 campaignId: dto.campaignId,
                 specificDetails: dto.specificDetails,
                 preferredExperienceCenter: dto.preferredExperienceCenter,

@@ -94,6 +94,11 @@ export class CreateLeadDto {
     @IsOptional()
     campaignId?: string;
 
+    @ApiPropertyOptional({ example: 'EC', enum: ['EC', 'HT', 'WEBSITE', 'POPIN'] })
+    @IsIn(['EC', 'HT', 'WEBSITE', 'POPIN'])
+    @IsOptional()
+    leadCategory?: string;
+
     @ApiPropertyOptional({ example: { utm_term: 'hair care' } })
     @IsObject()
     @IsOptional()
@@ -201,6 +206,7 @@ export class UpdateLeadRecordDto {
     @IsString() @IsOptional() source?: string;
     @IsString() @IsOptional() pageType?: string;
     @IsString() @IsOptional() campaignId?: string;
+    @IsIn(['EC', 'HT', 'WEBSITE', 'POPIN']) @IsOptional() leadCategory?: string;
     @IsObject() @IsOptional() specificDetails?: Record<string, any>;
 
     // Calling fields
