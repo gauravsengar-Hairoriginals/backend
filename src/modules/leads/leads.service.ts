@@ -861,14 +861,22 @@ export class LeadsService {
     }
 
     // ── Shared computation for auto-assign (dry-run or commit) ───────────────
-    private async _computeAutoAssign() {
-        // ── 1. Load all active lead callers ───────────────────────────────────
+    private async _computeAutoAssign(onlineOnly = true) {
+        // onlineOnly=true  → active + on-shift callers only
+        // onlineOnly=false → all active callers regardless of shift status
+        const callerWhere: any = { role: UserRole.LEAD_CALLER, isActive: true };
+        if (onlineOnly) callerWhere.isOnShift = true;
+
         const allCallers = await this.userRepo.find({
-            where: { role: UserRole.LEAD_CALLER, isActive: true },
-            order: { name: 'ASC' },
+            where: callerWhere,
+            order: { lastAssignedAt: 'ASC' },
         });
-        if (allCallers.length === 0)
-            throw new BadRequestException('No active lead callers found in the system');
+        if (allCallers.length === 0) {
+            const hint = onlineOnly
+                ? 'No on-shift callers found. Start a shift or use onlineOnly=false to include offline callers.'
+                : 'No active lead callers found in the system.';
+            throw new BadRequestException(hint);
+        }
 
         // ── 2. Build lookup pools keyed by "callerCategory|callerRegions[]" ──────
         // Pool keys:
@@ -904,6 +912,7 @@ export class LeadsService {
                 assignedToId: IsNull(),
                 status: Not(In(['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'])),
             },
+            relations: ['customer'],   // ← required: city lookup needs customer.city
             order: { createdAt: 'ASC' },
         });
 
@@ -965,10 +974,11 @@ export class LeadsService {
     }
 
     // ── Auto-Assign Preview (dry-run — no DB writes) ───────────────────────
-    async autoAssignPreview() {
-        const { breakdown, unroutable, totalUnassigned, callers } = await this._computeAutoAssign();
+    async autoAssignPreview(onlineOnly = true) {
+        const { breakdown, unroutable, totalUnassigned, callers } = await this._computeAutoAssign(onlineOnly);
         return {
             preview: true,
+            onlineOnly,
             totalUnassigned,
             willAssign: totalUnassigned - unroutable,
             unroutable,
@@ -978,12 +988,12 @@ export class LeadsService {
     }
 
     // ── Auto-Assign (commit) ───────────────────────────────────────────────
-    async autoAssign(): Promise<{
+    async autoAssign(onlineOnly = true): Promise<{
         assigned: number; callers: number;
         breakdown: { callerName: string; count: number; categories: string[] }[];
         unroutable: number;
     }> {
-        const { assignments, breakdown, unroutable, callers } = await this._computeAutoAssign();
+        const { assignments, breakdown, unroutable, callers } = await this._computeAutoAssign(onlineOnly);
 
         if (assignments.length === 0)
             return { assigned: 0, callers, breakdown: [], unroutable };

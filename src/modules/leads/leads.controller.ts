@@ -107,16 +107,20 @@ export class LeadsController {
     @Get('auto-assign/preview')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-    autoAssignPreview() {
-        return this.leadsService.autoAssignPreview();
+    autoAssignPreview(@Query('onlineOnly') onlineOnly?: string) {
+        // ?onlineOnly=false → include offline callers; default = true (on-shift only)
+        const onlyOnline = onlineOnly === undefined ? true : onlineOnly !== 'false';
+        return this.leadsService.autoAssignPreview(onlyOnline);
     }
 
     // ── Admin: auto-assign commit (writes to DB) ──────────────────────────────
     @Post('auto-assign')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-    autoAssign() {
-        return this.leadsService.autoAssign();
+    autoAssign(@Body('onlineOnly') onlineOnly?: boolean) {
+        // body: { onlineOnly: false } → include offline callers; default = true
+        const onlyOnline = onlineOnly === undefined ? true : Boolean(onlineOnly);
+        return this.leadsService.autoAssign(onlyOnline);
     }
 
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────
