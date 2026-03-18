@@ -916,6 +916,7 @@ export class LeadsService {
             order: { createdAt: 'ASC' },
         });
 
+
         // ── 4. Route each lead through the 3-tier matching ───────────────────
         const poolCounters: Record<string, number> = {};
         const callerCountMap: Record<string, { count: number; categories: Set<string>; regions: Set<string>; callerId: string }> = {};
@@ -932,11 +933,18 @@ export class LeadsService {
         };
 
         for (const lead of unassigned) {
-            const leadCat    = (lead.leadCategory ?? '').trim().toUpperCase();
-            const leadCity   = lead.customer?.city ?? '';
-            const leadRegion = await this.categorisation.cityToRegion(leadCity); // CallerRegion code from DB
+            // Derive category if missing — in-memory only, NOT persisted to DB
+            let leadCat = (lead.leadCategory ?? '').trim().toUpperCase();
+            if (!leadCat) {
+                leadCat = this.categorisation
+                    .deriveLeadCategory(lead.source, lead.pageType)
+                    .toUpperCase();
+            }
 
-            const targetCallerCat = this.categorisation.callerCategoryFor(leadCat); // CallerCategory | undefined
+            const leadCity   = lead.customer?.city ?? '';
+            const leadRegion = await this.categorisation.cityToRegion(leadCity);
+
+            const targetCallerCat = this.categorisation.callerCategoryFor(leadCat);
 
             let caller: User | null = null;
 
@@ -944,12 +952,16 @@ export class LeadsService {
                 // Tier 1: category + region (most specific)
                 caller = pickFromPool(`${targetCallerCat}|${leadRegion}`);
 
-                // Tier 2: category only (any region)
+                // Tier 2: category only (any region fallback)
                 if (!caller) caller = pickFromPool(`${targetCallerCat}|__any__`);
             }
 
+            // Tier 3: all active callers — fallback for unknown/uncategorised leads
+            if (!caller) caller = pickFromPool('__all__');
+
             // No match → leave unassigned (admin will assign manually)
             if (!caller) { unroutable++; continue; }
+
 
             assignments.push({ lead, caller });
 
