@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CallerRegion } from '../../modules/users/enums/caller-region.enum';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CallerCategory } from '../../modules/users/enums/caller-category.enum';
-
-// ── City → Region ─────────────────────────────────────────────────────────────
-const DELHI_NCR_CITIES = ['delhi', 'noida', 'gurugram', 'gurgaon', 'ghaziabad', 'faridabad', 'greater noida'];
-const HYDERABAD_CITIES = ['hyderabad', 'secunderabad', 'cyberabad'];
-const MUMBAI_CITIES    = ['mumbai', 'thane', 'navi mumbai', 'kalyan', 'dombivli'];
+import { CityRegion } from '../../modules/admin/entities/city-region.entity';
 
 /** Map lead category string → CallerCategory that handles it */
 export const LEAD_CAT_TO_CALLER_CAT: Record<string, CallerCategory> = {
@@ -15,8 +12,18 @@ export const LEAD_CAT_TO_CALLER_CAT: Record<string, CallerCategory> = {
     POPIN:   CallerCategory.POPIN_CALLER,
 };
 
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
 @Injectable()
 export class LeadCategorisationService {
+    private _cachedRegions: CityRegion[] | null = null;
+    private _cacheExpiresAt = 0;
+
+    constructor(
+        @InjectRepository(CityRegion)
+        private readonly cityRegionRepo: Repository<CityRegion>,
+    ) {}
+
     /**
      * Derive a lead category from its source and pageType strings.
      * Returns 'EC' | 'HT' | 'POPIN' | 'WEBSITE'.
@@ -37,18 +44,42 @@ export class LeadCategorisationService {
         return 'WEBSITE';
     }
 
-    /** Map a city name to its CallerRegion. */
-    cityToRegion(city?: string): CallerRegion {
-        if (!city) return CallerRegion.REST_OF_INDIA;
+    /** Map a city name to its CallerRegion code (from DB, with 30s cache). */
+    async cityToRegion(city?: string): Promise<string> {
+        if (!city) return 'REST_OF_INDIA';
         const lower = city.toLowerCase();
-        if (DELHI_NCR_CITIES.some(c => lower.includes(c))) return CallerRegion.DELHI_NCR;
-        if (HYDERABAD_CITIES.some(c => lower.includes(c))) return CallerRegion.HYDERABAD;
-        if (MUMBAI_CITIES.some(c => lower.includes(c)))    return CallerRegion.MUMBAI;
-        return CallerRegion.REST_OF_INDIA;
+
+        const regions = await this.getRegions();
+
+        // Match all regions except REST_OF_INDIA first
+        for (const region of regions) {
+            if (region.regionCode === 'REST_OF_INDIA') continue;
+            if (region.cities.some(c => lower.includes(c))) {
+                return region.regionCode;
+            }
+        }
+
+        return 'REST_OF_INDIA';
     }
 
     /** Resolve the CallerCategory that handles a given lead category string. */
     callerCategoryFor(leadCategory: string): CallerCategory | undefined {
         return LEAD_CAT_TO_CALLER_CAT[leadCategory];
+    }
+
+    private async getRegions(): Promise<CityRegion[]> {
+        const now = Date.now();
+        if (this._cachedRegions && now < this._cacheExpiresAt) {
+            return this._cachedRegions;
+        }
+        this._cachedRegions = await this.cityRegionRepo.find({ where: { isActive: true } });
+        this._cacheExpiresAt = now + CACHE_TTL_MS;
+        return this._cachedRegions;
+    }
+
+    /** Call this after saving a city region to force cache refresh */
+    invalidateCache(): void {
+        this._cachedRegions = null;
+        this._cacheExpiresAt = 0;
     }
 }

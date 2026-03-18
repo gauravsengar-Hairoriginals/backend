@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Query, Param, Delete } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../modules/auth/guards/roles.guard';
@@ -234,6 +234,35 @@ export class AdminController {
         @Body() body: { isActive: boolean },
     ) {
         return this.adminService.toggleExperienceCenterStatus(id, body.isActive);
+    }
+
+    // ── City Regions Management ───────────────────────────────────────
+
+    @Get('city-regions')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async listCityRegions() {
+        return this.adminService.listCityRegions();
+    }
+
+    @Post('city-regions')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async createCityRegion(@Body() body: { regionCode: string; regionName: string; cities?: string[] }) {
+        return this.adminService.createCityRegion(body);
+    }
+
+    @Post('city-regions/:id')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async updateCityRegion(
+        @Param('id') id: string,
+        @Body() body: { regionName?: string; cities?: string[]; isActive?: boolean },
+    ) {
+        return this.adminService.updateCityRegion(id, body);
+    }
+
+    @Delete('city-regions/:id')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async deleteCityRegion(@Param('id') id: string) {
+        return this.adminService.deleteCityRegion(id);
     }
 }
 

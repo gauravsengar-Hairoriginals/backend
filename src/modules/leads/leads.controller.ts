@@ -95,6 +95,14 @@ export class LeadsController {
         return this.leadsService.getCallerAgingDashboard();
     }
 
+    // ── Admin: source aging dashboard ─────────────────────────────────────────
+    @Get('source-aging-dashboard')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    getSourceAgingDashboard() {
+        return this.leadsService.getSourceAgingDashboard();
+    }
+
     // ── Admin: auto-assign preview (dry-run, no DB changes) ──────────────────
     @Get('auto-assign/preview')
     @UseGuards(JwtAuthGuard, RolesGuard)

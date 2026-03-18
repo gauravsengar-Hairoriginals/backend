@@ -232,12 +232,16 @@ export class LeadsService {
             }
         } else {
             // Round-robin by caller category + region
-            const region = this.categorisation.cityToRegion(freshLead.customer?.city);
+            const region = await this.categorisation.cityToRegion(freshLead.customer?.city);
             const callers = await this.userRepo
                 .createQueryBuilder('u')
                 .where('u.role = :role', { role: UserRole.LEAD_CALLER })
                 .andWhere('u.caller_category = :cat', { cat: callerCategory })
-                .andWhere('u.caller_region = :region', { region })
+                .andWhere(
+                    // Match callers with empty regions (any region) OR with this specific region in their jsonb array
+                    '(u.caller_regions = :empty OR :region = ANY(u.caller_regions))',
+                    { empty: '[]', region },
+                )
                 .andWhere('u.is_on_shift = true')
                 .andWhere('u.is_active = true')
                 .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST')
@@ -698,6 +702,82 @@ export class LeadsService {
         return { categories: result };
     }
 
+    // ── Source Aging Dashboard ────────────────────────────────────────────────
+    async getSourceAgingDashboard(): Promise<any> {
+        const BUCKETS = ['0-3d', '4-7d', '8-14d', '15-30d', '30d+'];
+        const STAGES  = ['fresh', 'contacted', 'reminder', 'revisit'];
+
+        const rows: Array<{
+            source: string | null;
+            is_revisit: boolean;
+            next_action_date: string | null;
+            call1: string | null;
+            created_at: string;
+        }> = await this.dataSource.query(`
+            SELECT
+                source,
+                is_revisit,
+                next_action_date,
+                call1,
+                created_at
+            FROM lead_records
+            WHERE status NOT IN ('dropped','converted:Marked to EC','converted:Marked to HT','converted:Marked to VC')
+        `);
+
+        const now = Date.now();
+
+        const getStage = (r: typeof rows[0]): string => {
+            if (r.is_revisit) return 'revisit';
+            if (r.next_action_date && new Date(r.next_action_date) <= new Date()) return 'reminder';
+            if (!r.call1) return 'fresh';
+            return 'contacted';
+        };
+
+        const getBucket = (ca: string): string => {
+            const d = Math.floor((now - new Date(ca).getTime()) / 86400000);
+            if (d <= 3)  return '0-3d';
+            if (d <= 7)  return '4-7d';
+            if (d <= 14) return '8-14d';
+            if (d <= 30) return '15-30d';
+            return '30d+';
+        };
+
+        // Group by source
+        const sourceMap: Record<string, typeof rows> = {};
+        for (const r of rows) {
+            const src = (r.source ?? 'Unknown').trim() || 'Unknown';
+            if (!sourceMap[src]) sourceMap[src] = [];
+            sourceMap[src].push(r);
+        }
+
+        const result = Object.entries(sourceMap)
+            .map(([source, sr]) => {
+                let totalDays = 0;
+                const grid: Record<string, Record<string, number>> = {};
+                STAGES.forEach(s => { grid[s] = {}; BUCKETS.forEach(b => { grid[s][b] = 0; }); });
+
+                for (const r of sr) {
+                    grid[getStage(r)][getBucket(r.created_at)]++;
+                    totalDays += Math.floor((now - new Date(r.created_at).getTime()) / 86400000);
+                }
+
+                return {
+                    source,
+                    total: sr.length,
+                    avgAgingDays: +(totalDays / sr.length).toFixed(1),
+                    buckets: BUCKETS,
+                    stages: STAGES.map(s => ({
+                        stage: s,
+                        total: BUCKETS.reduce((acc, b) => acc + grid[s][b], 0),
+                        bucketCounts: BUCKETS.map(b => grid[s][b]),
+                    })),
+                };
+            })
+            .sort((a, b) => b.total - a.total); // biggest sources first
+
+        return { sources: result };
+    }
+
     // ── Caller Aging Dashboard ────────────────────────────────────────────────
     async getCallerAgingDashboard(): Promise<any> {
         const BUCKETS = ['0-3d', '4-7d', '8-14d', '15-30d', '30d+'];
@@ -790,7 +870,7 @@ export class LeadsService {
         if (allCallers.length === 0)
             throw new BadRequestException('No active lead callers found in the system');
 
-        // ── 2. Build lookup pools keyed by "callerCategory|callerRegion" ──────
+        // ── 2. Build lookup pools keyed by "callerCategory|callerRegions[]" ──────
         // Pool keys:
         //   "EC_CALLER|DELHI_NCR"   → callers in EC category AND Delhi NCR region
         //   "EC_CALLER|__any__"     → all callers in EC category (any region)
@@ -798,20 +878,22 @@ export class LeadsService {
         const poolMap: Record<string, User[]> = { '__all__': allCallers };
 
         for (const caller of allCallers) {
-            const cat    = caller.callerCategory ?? null;
-            const region = caller.callerRegion   ?? null;
+            const cat     = caller.callerCategory ?? null;
+            const regions = caller.callerRegions ?? [];
 
             if (cat) {
-                // Category-only pool (cat|__any__)
-                const catKey = `${cat}|__any__`;
-                if (!poolMap[catKey]) poolMap[catKey] = [];
-                poolMap[catKey].push(caller);
-
-                // Category + region pool (cat|region)
-                if (region) {
-                    const bothKey = `${cat}|${region}`;
-                    if (!poolMap[bothKey]) poolMap[bothKey] = [];
-                    poolMap[bothKey].push(caller);
+                if (regions.length === 0) {
+                    // No region restriction — serves any region (category-only pool)
+                    const catKey = `${cat}|__any__`;
+                    if (!poolMap[catKey]) poolMap[catKey] = [];
+                    poolMap[catKey].push(caller);
+                } else {
+                    // Add to each specific region pool this caller covers
+                    for (const region of regions) {
+                        const bothKey = `${cat}|${region}`;
+                        if (!poolMap[bothKey]) poolMap[bothKey] = [];
+                        poolMap[bothKey].push(caller);
+                    }
                 }
             }
         }
@@ -843,7 +925,7 @@ export class LeadsService {
         for (const lead of unassigned) {
             const leadCat    = (lead.leadCategory ?? '').trim().toUpperCase();
             const leadCity   = lead.customer?.city ?? '';
-            const leadRegion = this.categorisation.cityToRegion(leadCity); // CallerRegion enum
+            const leadRegion = await this.categorisation.cityToRegion(leadCity); // CallerRegion code from DB
 
             const targetCallerCat = this.categorisation.callerCategoryFor(leadCat); // CallerCategory | undefined
 

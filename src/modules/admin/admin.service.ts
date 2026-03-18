@@ -1,11 +1,10 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
 import { CallerCategory } from '../users/enums/caller-category.enum';
-import { CallerRegion } from '../users/enums/caller-region.enum';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateLeadCallerDto } from './dto/update-lead-caller.dto';
@@ -15,18 +14,41 @@ import { ReferralStatus } from '../referrals/entities/referral.entity';
 import { DiscountsService } from '../discounts/discounts.service';
 import { UsersService } from '../users/users.service';
 import { ExperienceCenter } from './entities/experience-center.entity';
+import { CityRegion } from './entities/city-region.entity';
 
 @Injectable()
-export class AdminService {
+export class AdminService implements OnModuleInit {
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
         @InjectRepository(ExperienceCenter)
         private readonly ecRepository: Repository<ExperienceCenter>,
+        @InjectRepository(CityRegion)
+        private readonly cityRegionRepo: Repository<CityRegion>,
         private readonly referralsService: ReferralsService,
         private readonly salonsService: SalonsService,
         private readonly discountsService: DiscountsService,
     ) { }
+
+    async onModuleInit() {
+        await this.seedDefaultCityRegions();
+    }
+
+    private async seedDefaultCityRegions(): Promise<void> {
+        const count = await this.cityRegionRepo.count();
+        if (count > 0) return; // Already seeded
+
+        const defaults = [
+            { regionCode: 'DELHI_NCR', regionName: 'Delhi NCR', cities: ['delhi', 'noida', 'gurugram', 'gurgaon', 'ghaziabad', 'faridabad', 'greater noida'] },
+            { regionCode: 'HYDERABAD', regionName: 'Hyderabad', cities: ['hyderabad', 'secunderabad', 'cyberabad'] },
+            { regionCode: 'MUMBAI',    regionName: 'Mumbai',    cities: ['mumbai', 'thane', 'navi mumbai', 'kalyan', 'dombivli'] },
+            { regionCode: 'REST_OF_INDIA', regionName: 'Rest of India', cities: [] },
+        ];
+
+        for (const d of defaults) {
+            await this.cityRegionRepo.save(this.cityRegionRepo.create({ ...d, isActive: true }));
+        }
+    }
 
     async getDashboardStats(user: User) {
         // Example: Only fetch financial stats if user has VIEW_FINANCIALS permission
@@ -174,7 +196,7 @@ export class AdminService {
         phone: string;
         password?: string;
         callerCategory?: CallerCategory;
-        callerRegion?: CallerRegion;
+        callerRegions?: string[];
     }): Promise<Omit<User, 'passwordHash'>> {
         const existing = await this.userRepository.findOne({ where: { email: dto.email } });
         if (existing) {
@@ -193,7 +215,7 @@ export class AdminService {
             isActive: true,
         };
         if (dto.callerCategory) callerData.callerCategory = dto.callerCategory;
-        if (dto.callerRegion) callerData.callerRegion = dto.callerRegion;
+        if (dto.callerRegions)   callerData.callerRegions  = dto.callerRegions;
 
         const caller = this.userRepository.create(callerData as any);
 
@@ -208,7 +230,7 @@ export class AdminService {
             .select([
                 'user.id', 'user.name', 'user.email', 'user.phone',
                 'user.isActive', 'user.createdAt', 'user.callerCategory',
-                'user.callerRegion', 'user.isOnShift', 'user.shiftStartedAt',
+                'user.callerRegions', 'user.isOnShift', 'user.shiftStartedAt',
             ]);
 
         if (search) {
@@ -241,8 +263,8 @@ export class AdminService {
         if (dto.name)                        caller.name           = dto.name.trim();
         if (dto.email)                       caller.email          = dto.email.trim().toLowerCase();
         if (dto.phone)                       caller.phone          = normalizePhone(dto.phone);
-        if (dto.callerCategory !== undefined) caller.callerCategory = dto.callerCategory;
-        if (dto.callerRegion   !== undefined) caller.callerRegion   = dto.callerRegion;
+        if (dto.callerCategory  !== undefined) caller.callerCategory  = dto.callerCategory;
+        if (dto.callerRegions   !== undefined) caller.callerRegions   = dto.callerRegions;
         if (dto.password && dto.password.trim()) {
             caller.passwordHash = await bcrypt.hash(dto.password.trim(), 10);
         }
@@ -325,6 +347,45 @@ export class AdminService {
         }
         ec.isActive = isActive;
         return this.ecRepository.save(ec);
+    }
+
+    // ── City Region Management ────────────────────────────────────────────
+
+    async listCityRegions(): Promise<CityRegion[]> {
+        return this.cityRegionRepo.find({ order: { regionName: 'ASC' } });
+    }
+
+    async createCityRegion(dto: { regionCode: string; regionName: string; cities?: string[] }): Promise<CityRegion> {
+        const existing = await this.cityRegionRepo.findOne({ where: { regionCode: dto.regionCode.toUpperCase() } });
+        if (existing) throw new ConflictException(`Region code "${dto.regionCode}" already exists`);
+        const region = this.cityRegionRepo.create({
+            regionCode: dto.regionCode.toUpperCase().replace(/\s+/g, '_'),
+            regionName: dto.regionName,
+            cities: (dto.cities ?? []).map(c => c.trim().toLowerCase()).filter(Boolean),
+            isActive: true,
+        });
+        return this.cityRegionRepo.save(region);
+    }
+
+    async updateCityRegion(id: string, dto: { regionName?: string; cities?: string[]; isActive?: boolean }): Promise<CityRegion> {
+        const region = await this.cityRegionRepo.findOne({ where: { id } });
+        if (!region) throw new NotFoundException('City region not found');
+        if (dto.regionName !== undefined) region.regionName = dto.regionName;
+        if (dto.cities !== undefined) region.cities = dto.cities.map(c => c.trim().toLowerCase()).filter(Boolean);
+        if (dto.isActive !== undefined) region.isActive = dto.isActive;
+        return this.cityRegionRepo.save(region);
+    }
+
+    async deleteCityRegion(id: string): Promise<{ success: boolean }> {
+        const region = await this.cityRegionRepo.findOne({ where: { id } });
+        if (!region) throw new NotFoundException('City region not found');
+        await this.cityRegionRepo.remove(region);
+        return { success: true };
+    }
+
+    /** Used by LeadCategorisationService to resolve city → regionCode */
+    async getActiveCityRegions(): Promise<CityRegion[]> {
+        return this.cityRegionRepo.find({ where: { isActive: true }, order: { regionName: 'ASC' } });
     }
 }
 

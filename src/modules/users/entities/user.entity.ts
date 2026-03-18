@@ -13,7 +13,6 @@ import { Level } from '../../../common/enums/level.enum';
 import { Salon } from '../../salons/entities/salon.entity';
 import { Referral } from '../../referrals/entities/referral.entity';
 import { CallerCategory } from '../enums/caller-category.enum';
-import { CallerRegion } from '../enums/caller-region.enum';
 
 @Entity('users')
 export class User {
@@ -119,13 +118,14 @@ export class User {
     })
     callerCategory: CallerCategory;
 
+    /** Regions this caller serves. Multiple regions allowed. Empty = any region. */
     @Column({
-        name: 'caller_region',
-        type: 'enum',
-        enum: CallerRegion,
+        name: 'caller_regions',
+        type: 'jsonb',
+        default: '[]',
         nullable: true,
     })
-    callerRegion: CallerRegion;
+    callerRegions: string[];
 
     /** Whether the caller has manually started their shift */
     @Column({ name: 'is_on_shift', default: false })
