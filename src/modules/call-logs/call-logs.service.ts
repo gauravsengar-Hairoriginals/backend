@@ -44,12 +44,13 @@ export class CallLogsService {
     // ── Callback: qkonnect posts result, we find & update the pending record ───
     async handleCallback(params: Record<string, string>): Promise<{ success: boolean; error?: string }> {
         // qkonnect may use different casing — normalise common variants
-        const agentNumber  = params['agent_number']  ?? params['agentNumber']  ?? '';
-        const callerNumber = params['caller_number'] ?? params['callerNumber'] ?? '';
+        const agentNumber  = this.normalizePhone(params['agent_number']  ?? params['agentNumber']  ?? '');
+        const callerNumber = this.normalizePhone(params['caller_number'] ?? params['callerNumber'] ?? '');
         const direction    = (params['direction'] ?? params['Direction'] ?? '').toLowerCase();
 
         this.logger.log(`[CALLBACK] Received callback — agent=${agentNumber} caller=${callerNumber} direction=${direction}`);
         this.logger.log(`[CALLBACK] Raw qkonnect data:\n${JSON.stringify(params, null, 2)}`);
+
 
 
         if (!agentNumber || !callerNumber) {

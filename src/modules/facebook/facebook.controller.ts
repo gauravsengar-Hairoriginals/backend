@@ -8,6 +8,8 @@ import {
     Query,
     Body,
     Param,
+    RawBodyRequest, // Added RawBodyRequest import
+    Req,
     Res,
     UseGuards,
     HttpCode,
@@ -15,7 +17,8 @@ import {
     UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import { Request, Response } from 'express';
+
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FacebookService } from './facebook.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,13 +43,29 @@ export class FacebookController {
         }
     }
 
-    // ── Webhook Handler (POST — public, called by Facebook) ───────────────
+    // ── Webhook Handler (POST — public, called by Facebook native webhook) ──
     @Post('webhook')
     @HttpCode(200)
-    async handleWebhook(@Body() body: any) {
+    async handleWebhook(@Req() req: RawBodyRequest<Request>, @Body() body: any) {
+        // Log raw data for debugging
+        const raw = req.rawBody?.toString() ?? JSON.stringify(body);
+        console.log('[FB-WEBHOOK] Raw data received:\n', raw);
         // Always return 200 immediately to Facebook, process async
         await this.facebookService.handleWebhook(body);
         return { status: 'ok' };
+    }
+
+    // ── Direct Lead Push (POST — public, from 3rd-party CRM/plugins) ──────
+    // Accepts both JSON and form-encoded bodies regardless of Content-Type.
+    // Maps fields like FIRST_NAME, PHONE, CITY → CreateLeadDto and ingests.
+    @Post('lead-push')
+    @HttpCode(200)
+    async leadPush(@Req() req: RawBodyRequest<Request>) {
+        const rawBody = req.rawBody?.toString() ?? '';
+        console.log('[LEAD-PUSH] Raw data received:');
+        console.log('  Content-Type:', req.headers['content-type']);
+        console.log('  Raw body:\n', rawBody);
+        return this.facebookService.handleDirectLeadPush(rawBody);
     }
 
     // ── Config ────────────────────────────────────────────────────────────

@@ -298,6 +298,68 @@ export class FacebookService {
         }
     }
 
+    // ── Direct Lead Push (from 3rd-party CRM/plugin) ──────────────────────
+    // Handles POST bodies that may be form-encoded OR JSON regardless of
+    // the Content-Type header the caller sets.
+    // rawBody is pre-read by the controller from req.rawBody.
+    async handleDirectLeadPush(rawBody: string): Promise<{ success: boolean; leadId?: string; error?: string }> {
+        this.logger.log(`[LEAD-PUSH] Raw body received:\n${rawBody}`);
+
+        // ── 2. Parse — try JSON first, fall back to form-encoded ──────────
+        let fields: Record<string, string> = {};
+        try {
+            fields = JSON.parse(rawBody);
+            this.logger.log(`[LEAD-PUSH] Parsed as JSON:\n${JSON.stringify(fields, null, 2)}`);
+        } catch {
+            // Not JSON — parse as application/x-www-form-urlencoded
+            const params = new URLSearchParams(rawBody);
+            params.forEach((v, k) => { fields[k] = v; });
+            this.logger.log(`[LEAD-PUSH] Parsed as form-encoded:\n${JSON.stringify(fields, null, 2)}`);
+        }
+
+        // ── 3. Map common field names → lead fields ───────────────────────
+        // Support both UPPER_CASE (CRM style) and camelCase / snake_case
+        const get = (...keys: string[]) =>
+            keys.map(k => fields[k] ?? fields[k.toLowerCase()] ?? '').find(v => v) ?? '';
+
+        const firstName = get('FIRST_NAME', 'first_name', 'firstName');
+        const lastName  = get('LAST_NAME',  'last_name',  'lastName');
+        const phone     = get('PHONE', 'phone_number', 'mobile', 'MOBILE');
+        const email     = get('EMAIL', 'email_address');
+        const city      = get('CITY', 'city');
+        const zip       = get('ZIP_CODE', 'ZIP', 'pincode', 'PINCODE');
+        const country   = get('COUNTRY', 'country');
+        const formName  = get('FULL_NAME', 'form_name'); // many CRMs put form name here
+
+        const name = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+
+        if (!phone) {
+            this.logger.warn('[LEAD-PUSH] ❌ No phone number found — aborting');
+            return { success: false, error: 'Phone number is required' };
+        }
+
+        this.logger.log(`[LEAD-PUSH] Mapped → name="${name}" phone="${phone}" city="${city}" form="${formName}"`);
+
+        // ── 4. Ingest via LeadsService ────────────────────────────────────
+        try {
+            const lead = await this.leadsService.create({
+                name,
+                phone,
+                city,
+                pincode: zip,
+                source: 'facebook-direct',
+                pageType: formName || undefined,
+                notes: email ? `Email: ${email}` : undefined,
+            } as any);
+
+            this.logger.log(`[LEAD-PUSH] ✅ Lead created — id=${lead?.id}`);
+            return { success: true, leadId: lead?.id };
+        } catch (err: any) {
+            this.logger.error(`[LEAD-PUSH] ❌ Lead creation failed: ${err.message}`);
+            return { success: false, error: err.message };
+        }
+    }
+
     // ── Process a Single Lead ─────────────────────────────────────────────
     private async processLead(leadgenId: string, fbFormId: string): Promise<void> {
         this.logger.log(`[FB] Processing lead: leadgen_id=${leadgenId}, form_id=${fbFormId}`);
