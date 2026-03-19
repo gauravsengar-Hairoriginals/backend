@@ -2,10 +2,29 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // rawBody:true saves raw buffer; bodyParser:false lets us control parsing per-route
+  const app = await NestFactory.create(AppModule, { rawBody: true, bodyParser: false });
+
+  // ── Custom body parsers ─────────────────────────────────────────────────
+  // lead-push: CRM sends form-encoded body with wrong Content-Type (application/json).
+  // Read it as raw text so the JSON parser never sees it.
+  app.use('/api/v1/facebook/lead-push', (req: any, _res: any, next: any) => {
+    let data = '';
+    req.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+    req.on('end', () => {
+      req.body    = data;          // raw string — controller reads this
+      req.rawBody = Buffer.from(data);
+      next();
+    });
+  });
+
+  // All other routes: standard JSON + urlencoded
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
 
   // CORS — allow all origins in development

@@ -63,8 +63,9 @@ export class FacebookController {
     @Post('lead-push')
     @HttpCode(200)
     async leadPush(@Req() req: any) {
-        const typedReq = req as RawBodyRequest<Request>;
-        const rawBody = typedReq.rawBody?.toString() ?? '';
+        // req.body is set as raw string by the custom middleware in main.ts
+        // This handles CRMs that send form-encoded body with Content-Type: application/json
+        const rawBody: string = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
         console.log('[LEAD-PUSH] Raw data received:');
         console.log('  Content-Type:', req.headers['content-type']);
         console.log('  Raw body:\n', rawBody);
