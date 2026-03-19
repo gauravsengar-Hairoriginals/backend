@@ -8,7 +8,6 @@ import {
     Query,
     Body,
     Param,
-    RawBodyRequest, // Added RawBodyRequest import
     Req,
     Res,
     UseGuards,
@@ -17,7 +16,9 @@ import {
     UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Request, Response } from 'express';
+// Types imported separately — NOT used in decorated signatures to satisfy isolatedModules
+import type { RawBodyRequest } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FacebookService } from './facebook.service';
@@ -33,22 +34,23 @@ export class FacebookController {
 
     // ── Webhook Verification (GET — public, called by Facebook) ───────────
     @Get('webhook')
-    verifyWebhook(@Query() query: any, @Res() res: Response) {
+    verifyWebhook(@Query() query: any, @Res() res: any) {
+        const typedRes = res as Response;
         try {
             const challenge = this.facebookService.verifyWebhook(query);
             // Facebook expects the raw challenge string, not JSON
-            return res.status(200).send(challenge);
+            return typedRes.status(200).send(challenge);
         } catch {
-            return res.status(403).send('Verification failed');
+            return typedRes.status(403).send('Verification failed');
         }
     }
 
     // ── Webhook Handler (POST — public, called by Facebook native webhook) ──
     @Post('webhook')
     @HttpCode(200)
-    async handleWebhook(@Req() req: RawBodyRequest<Request>, @Body() body: any) {
-        // Log raw data for debugging
-        const raw = req.rawBody?.toString() ?? JSON.stringify(body);
+    async handleWebhook(@Req() req: any, @Body() body: any) {
+        const typedReq = req as RawBodyRequest<Request>;
+        const raw = typedReq.rawBody?.toString() ?? JSON.stringify(body);
         console.log('[FB-WEBHOOK] Raw data received:\n', raw);
         // Always return 200 immediately to Facebook, process async
         await this.facebookService.handleWebhook(body);
@@ -60,8 +62,9 @@ export class FacebookController {
     // Maps fields like FIRST_NAME, PHONE, CITY → CreateLeadDto and ingests.
     @Post('lead-push')
     @HttpCode(200)
-    async leadPush(@Req() req: RawBodyRequest<Request>) {
-        const rawBody = req.rawBody?.toString() ?? '';
+    async leadPush(@Req() req: any) {
+        const typedReq = req as RawBodyRequest<Request>;
+        const rawBody = typedReq.rawBody?.toString() ?? '';
         console.log('[LEAD-PUSH] Raw data received:');
         console.log('  Content-Type:', req.headers['content-type']);
         console.log('  Raw body:\n', rawBody);
