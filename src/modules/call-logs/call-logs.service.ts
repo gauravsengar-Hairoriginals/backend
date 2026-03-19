@@ -44,10 +44,11 @@ export class CallLogsService {
     // ── Callback: qkonnect posts result, we find & update the pending record ───
     async handleCallback(params: Record<string, string>): Promise<{ success: boolean; error?: string }> {
         // qkonnect may use different casing — normalise common variants
-        const agentNumber = params['agent_number'] ?? params['agentNumber'] ?? '';
+        const agentNumber  = params['agent_number']  ?? params['agentNumber']  ?? '';
         const callerNumber = params['caller_number'] ?? params['callerNumber'] ?? '';
+        const direction    = (params['direction'] ?? params['Direction'] ?? '').toLowerCase();
 
-        this.logger.log(`[CALLBACK] Received callback — agent=${agentNumber} caller=${callerNumber}`);
+        this.logger.log(`[CALLBACK] Received callback — agent=${agentNumber} caller=${callerNumber} direction=${direction}`);
         this.logger.log(`[CALLBACK] Full params: ${JSON.stringify(params)}`);
 
         if (!agentNumber || !callerNumber) {
@@ -62,15 +63,30 @@ export class CallLogsService {
         });
 
         if (!record) {
-            // ── Inbound IVR fallback ──────────────────────────────────────────
-            this.logger.log(`[CALLBACK] No pending call log found → treating as Inbound IVR`);
-            try {
-                await this.createInboundLead(agentNumber, callerNumber, params);
-                this.logger.log(`[CALLBACK] ✅ Inbound IVR lead created successfully`);
-                return { success: true };
-            } catch (err: any) {
-                this.logger.error(`[CALLBACK] ❌ Inbound IVR lead creation FAILED: ${err.message}`, err.stack);
-                return { success: false, error: `Inbound lead creation failed: ${err.message}` };
+            // ── No pending record: route by direction ─────────────────────────
+            if (direction === 'outbound') {
+                // Agent called a lead from an external DB — log it against their
+                // most recent lead or create a new 'Outbound Call' lead.
+                this.logger.log(`[CALLBACK] No pending record + Outbound → creating outbound orphan log`);
+                try {
+                    await this.createOutboundOrphanLog(agentNumber, callerNumber, params);
+                    this.logger.log(`[CALLBACK] ✅ Outbound orphan log created`);
+                    return { success: true };
+                } catch (err: any) {
+                    this.logger.error(`[CALLBACK] ❌ Outbound orphan log FAILED: ${err.message}`, err.stack);
+                    return { success: false, error: `Outbound orphan log failed: ${err.message}` };
+                }
+            } else {
+                // Inbound (IVR) — customer rang the business line
+                this.logger.log(`[CALLBACK] No pending record + Inbound → treating as Inbound IVR`);
+                try {
+                    await this.createInboundLead(agentNumber, callerNumber, params);
+                    this.logger.log(`[CALLBACK] ✅ Inbound IVR lead created successfully`);
+                    return { success: true };
+                } catch (err: any) {
+                    this.logger.error(`[CALLBACK] ❌ Inbound IVR lead creation FAILED: ${err.message}`, err.stack);
+                    return { success: false, error: `Inbound lead creation failed: ${err.message}` };
+                }
             }
         }
 
@@ -83,6 +99,91 @@ export class CallLogsService {
         this.notifyLeadSquared(params);
 
         return { success: true };
+    }
+
+    // ── Private: Outbound orphan — agent called outside the system ────────────
+    // Scenario: caller dialled a lead from an external DB; no pending CallLog
+    // exists. We find the customer's most recent open lead or create a new one.
+    private async createOutboundOrphanLog(
+        agentNumber: string,
+        callerNumber: string,
+        params: Record<string, string>,
+    ): Promise<void> {
+        const normalizedPhone = this.normalizePhone(callerNumber);
+        this.logger.log(`[OUTBOUND] Normalised phone: ${callerNumber} → ${normalizedPhone}`);
+
+        // 1. Find or create customer
+        let customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } })
+            ?? await this.customerRepo.findOne({ where: { phone: callerNumber } });
+
+        if (!customer) {
+            this.logger.log(`[OUTBOUND] Customer not found — creating new (scope=LOCAL)`);
+            customer = await this.customersService.create({
+                phone: callerNumber,
+                firstName: 'External',
+                lastName: 'Lead',
+                tags: ['outbound-orphan'],
+                scope: CustomerScope.LOCAL,
+            });
+            this.logger.log(`[OUTBOUND] Created customer id=${customer.id}`);
+        } else {
+            this.logger.log(`[OUTBOUND] Found existing customer id=${customer.id}`);
+        }
+
+        // 2. Find most recent open (non-closed) lead for this customer
+        let lead = await this.leadRepo.findOne({
+            where: { customerId: customer.id },
+            order: { createdAt: 'DESC' },
+        });
+
+        if (!lead) {
+            // No lead in our system at all — create one as 'Outbound Call'
+            this.logger.log(`[OUTBOUND] No existing lead — creating Outbound Call lead for customer ${customer.id}`);
+            lead = await this.leadRepo.save(
+                this.leadRepo.create({
+                    customerId: customer.id,
+                    source: 'Outbound Call',
+                    status: LeadStatus.NEW,
+                    isRevisit: false,
+                }),
+            );
+            this.logger.log(`[OUTBOUND] Created lead id=${lead.id}`);
+        } else {
+            this.logger.log(`[OUTBOUND] Linking call log to existing lead id=${lead.id}`);
+        }
+
+        // 3. Create the call log
+        const parseDate = (v?: string): Date | undefined => {
+            if (!v || v.trim() === '' || v.startsWith('00:00:00') || v.startsWith('0NaN')) return undefined;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? undefined : d;
+        };
+        const parseNum = (v?: string) => (v != null ? parseInt(v, 10) : undefined);
+        const callAction = params['call_action'] ?? params['callAction'] ?? '';
+
+        const callLog = await this.callLogRepo.save(
+            this.callLogRepo.create({
+                leadId: lead.id,
+                customerId: customer.id,
+                agentNumber,
+                callerNumber,
+                status: this.isMissed(params) ? CallLogStatus.MISSED : CallLogStatus.COMPLETED,
+                callId:              params['call_id'] ?? params['callId'],
+                destinationNumber:   params['destination_number'] ?? params['destinationNumber'],
+                callStartTime:       parseDate(params['call_start_time'] ?? params['callStartTime']),
+                callEndTime:         parseDate(params['call_end_time'] ?? params['callEndTime']),
+                callPickupTime:      parseDate(params['call_pickup_time'] ?? params['callPickupTime']),
+                callHangupTime:      parseDate(params['call_hangup_time'] ?? params['callHangupTime']),
+                totalCallDuration:   parseNum(params['total_call_duration'] ?? params['totalCallDuration']),
+                callTransferDuration:parseNum(params['call_transfer_duration'] ?? params['callTransferDuration']),
+                callRecordingUrl:    params['call_recording_url'] ?? params['callRecordingUrl'],
+                callAction,
+            }),
+        );
+        this.logger.log(`[OUTBOUND] ✅ Call log id=${callLog.id} linked to lead=${lead.id} customer=${customer.id}`);
+
+        // Notify LeadSquared (fire-and-forget)
+        this.notifyLeadSquared(params);
     }
 
     // ── Private: create Inbound IVR lead + call log ────────────────────────────
@@ -174,7 +275,11 @@ export class CallLogsService {
         // 4. Create the call log with callback data already filled in
         this.logger.log(`[INBOUND] Step 6: Creating CallLog — leadId=${lead.id}`);
         const callAction = params['call_action'] ?? params['callAction'] ?? '';
-        const parseDate = (v?: string) => (v ? new Date(v) : undefined);
+        const parseDate = (v?: string): Date | undefined => {
+            if (!v || v.trim() === '' || v.startsWith('00:00:00') || v.startsWith('0NaN')) return undefined;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? undefined : d;
+        };
         const parseNum = (v?: string) => (v != null ? parseInt(v, 10) : undefined);
 
         const callLog = await this.callLogRepo.save(
@@ -256,7 +361,11 @@ export class CallLogsService {
     }
 
     private async applyCallbackFields(id: string, params: Record<string, string>): Promise<void> {
-        const parseDate = (v?: string) => (v ? new Date(v) : undefined);
+        const parseDate = (v?: string): Date | undefined => {
+            if (!v || v.trim() === '' || v.startsWith('00:00:00') || v.startsWith('0NaN')) return undefined;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? undefined : d;
+        };
         const parseNum = (v?: string) => (v != null ? parseInt(v, 10) : undefined);
         const callAction = params['call_action'] ?? params['callAction'] ?? '';
 
