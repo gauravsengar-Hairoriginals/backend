@@ -49,7 +49,8 @@ export class CallLogsService {
         const direction    = (params['direction'] ?? params['Direction'] ?? '').toLowerCase();
 
         this.logger.log(`[CALLBACK] Received callback — agent=${agentNumber} caller=${callerNumber} direction=${direction}`);
-        this.logger.log(`[CALLBACK] Full params: ${JSON.stringify(params)}`);
+        this.logger.log(`[CALLBACK] Raw qkonnect data:\n${JSON.stringify(params, null, 2)}`);
+
 
         if (!agentNumber || !callerNumber) {
             this.logger.warn('[CALLBACK] ❌ Missing agent_number or caller_number — aborting');
@@ -341,6 +342,8 @@ export class CallLogsService {
         };
 
         this.logger.log(`[LEADSQUARED] Notifying — CallId=${callId} RecordingURL=${recordingUrl || '(none)'}`);
+        this.logger.log(`[LEADSQUARED] Notifying — URL: ${this.LEADSQUARED_URL}`);
+        this.logger.log(`[LEADSQUARED] Payload: ${JSON.stringify(payload, null, 2)}`);
 
         fetch(this.LEADSQUARED_URL, {
             method: 'POST',
