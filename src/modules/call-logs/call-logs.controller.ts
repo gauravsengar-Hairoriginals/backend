@@ -22,10 +22,17 @@ export class CallLogsController {
         return this.callLogsService.initiate(dto);
     }
 
-    // ── GET /api/v1/call-logs/callback  (PUBLIC — called by qkonnect) ─────────
+    // ── GET /api/v1/call-logs/callback  (PUBLIC — GET fallback) ───────────────
     @Get('callback')
-    @ApiOperation({ summary: 'qkonnect call-completion webhook (no auth)' })
-    async callback(@Query() params: Record<string, string>) {
+    @ApiOperation({ summary: 'qkonnect call-completion webhook — GET (no auth)' })
+    async callbackGet(@Query() params: Record<string, string>) {
+        return this.callLogsService.handleCallback(params);
+    }
+
+    // ── POST /api/v1/call-logs/callback  (PUBLIC — qkonnect sends POST) ───────
+    @Post('callback')
+    @ApiOperation({ summary: 'qkonnect call-completion webhook — POST (no auth)' })
+    async callbackPost(@Query() params: Record<string, string>) {
         return this.callLogsService.handleCallback(params);
     }
 
