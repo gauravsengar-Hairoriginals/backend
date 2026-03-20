@@ -302,7 +302,7 @@ export class FacebookService {
     // Handles POST bodies that may be form-encoded OR JSON regardless of
     // the Content-Type header the caller sets.
     // rawBody is pre-read by the controller from req.rawBody.
-    async handleDirectLeadPush(rawBody: string): Promise<{ success: boolean; leadId?: string; error?: string }> {
+    async handleDirectLeadPush(rawBody: string): Promise<{ success: boolean; leadId?: string; error?: string; duplicate?: boolean }> {
         this.logger.log(`[LEAD-PUSH] Raw body received:\n${rawBody}`);
 
         // ── 2. Parse — try JSON first, fall back to form-encoded ──────────
@@ -322,14 +322,36 @@ export class FacebookService {
         const get = (...keys: string[]) =>
             keys.map(k => fields[k] ?? fields[k.toLowerCase()] ?? '').find(v => v) ?? '';
 
+        // Facebook lead ID — LeadBridge sends this as lead_id, LEAD_ID, or id
+        const fbLeadgenId = get('lead_id', 'LEAD_ID', 'leadgen_id', 'LEADGEN_ID', 'id', 'ID');
+        // Facebook form ID — LeadBridge may send as form_id or 'form name' (confusingly)
+        const fbFormId    = get('form_id', 'FORM_ID', 'form name', 'FORM_NAME');
+
+        // ── Deduplication: skip if we already have this Facebook lead ─────
+        if (fbLeadgenId) {
+            const existing = await this.leadsService.findByFacebookLeadgenId(fbLeadgenId);
+            if (existing) {
+                this.logger.log(`[LEAD-PUSH] ⚠️ Duplicate — lead with fb_leadgen_id=${fbLeadgenId} already exists (id=${existing.id}). Skipping.`);
+                return { success: true, leadId: existing.id, duplicate: true };
+            }
+        } else {
+            this.logger.warn('[LEAD-PUSH] No lead_id found in payload — deduplication skipped');
+        }
+
         const firstName = get('FIRST_NAME', 'first_name', 'firstName');
         const lastName  = get('LAST_NAME',  'last_name',  'lastName');
         const phone     = get('PHONE', 'phone_number', 'mobile', 'MOBILE');
         const email     = get('EMAIL', 'email_address');
         const city      = get('CITY', 'city');
         const zip       = get('ZIP_CODE', 'ZIP', 'pincode', 'PINCODE');
-        const country   = get('COUNTRY', 'country');
-        const formName  = get('FULL_NAME', 'form_name'); // many CRMs put form name here
+        const formName  = get('FULL_NAME', 'form_name');
+
+        // UTM tracking fields
+        const utmSource   = get('utm_source',   'UTM_SOURCE');
+        const utmMedium   = get('utm_medium',   'UTM_MEDIUM');
+        const utmCampaign = get('utm_campaign', 'UTM_CAMPAIGN');
+        const utmContent  = get('utm_content',  'UTM_CONTENT');
+        const utmTerm     = get('utm_term',     'UTM_TERM');
 
         const name = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
 
@@ -338,7 +360,7 @@ export class FacebookService {
             return { success: false, error: 'Phone number is required' };
         }
 
-        this.logger.log(`[LEAD-PUSH] Mapped → name="${name}" phone="${phone}" city="${city}" form="${formName}"`);
+        this.logger.log(`[LEAD-PUSH] Mapped → name="${name}" phone="${phone}" city="${city}" form="${formName}" leadgenId="${fbLeadgenId}" utm_source="${utmSource}"`);
 
         // ── 4. Ingest via LeadsService ────────────────────────────────────
         try {
@@ -350,9 +372,19 @@ export class FacebookService {
                 source: 'facebook-direct',
                 pageType: formName || undefined,
                 notes: email ? `Email: ${email}` : undefined,
+                specificDetails: {
+                    ...(fbLeadgenId  ? { fb_leadgen_id:  fbLeadgenId  } : {}),
+                    ...(fbFormId     ? { fb_form_id:     fbFormId     } : {}),
+                    ...(utmSource    ? { utm_source:     utmSource    } : {}),
+                    ...(utmMedium    ? { utm_medium:     utmMedium    } : {}),
+                    ...(utmCampaign  ? { utm_campaign:   utmCampaign  } : {}),
+                    ...(utmContent   ? { utm_content:    utmContent   } : {}),
+                    ...(utmTerm      ? { utm_term:       utmTerm      } : {}),
+                    fb_raw_fields: fields,
+                },
             } as any);
 
-            this.logger.log(`[LEAD-PUSH] ✅ Lead created — id=${lead?.id}`);
+            this.logger.log(`[LEAD-PUSH] ✅ Lead created — id=${lead?.id} fb_leadgen_id=${fbLeadgenId || '(none)'}`);
             return { success: true, leadId: lead?.id };
         } catch (err: any) {
             this.logger.error(`[LEAD-PUSH] ❌ Lead creation failed: ${err.message}`);
