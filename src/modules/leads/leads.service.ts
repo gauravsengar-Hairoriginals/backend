@@ -397,22 +397,25 @@ export class LeadsService {
             }
         }
 
-        // Add global duplicate count — total leads for this customer across ALL records
-        qb.addSelect(
-            subq => subq
-                .select('COUNT(sub.id)', 'cnt')
-                .from('lead_records', 'sub')
-                .where('sub.customer_id = customer.id'),
-            'totalLeadCount',
-        );
+        // Fetch paginated results
+        const [leads, total] = await qb.getManyAndCount();
 
-        const rawAndEntities = await qb.getRawAndEntities();
-        const leads = rawAndEntities.entities.map((lead, i) => {
-            const raw = rawAndEntities.raw[i];
-            (lead as any).totalLeadCount = parseInt(raw?.totalLeadCount ?? '1', 10);
-            return lead;
-        });
-        const total = await qb.getCount();
+        // Add global duplicate count via a separate GROUP BY query — reliable across pagination
+        if (leads.length > 0) {
+            const customerIds = [...new Set(leads.map(l => l.customerId).filter(Boolean))];
+            const countRows = await this.leadRecordRepo
+                .createQueryBuilder('sub')
+                .select('sub.customer_id', 'customerId')
+                .addSelect('COUNT(sub.id)', 'cnt')
+                .where('sub.customer_id IN (:...ids)', { ids: customerIds })
+                .groupBy('sub.customer_id')
+                .getRawMany();
+            const countMap = new Map(countRows.map(r => [r.customerId, parseInt(r.cnt, 10)]));
+            leads.forEach(lead => {
+                (lead as any).totalLeadCount = countMap.get(lead.customerId) ?? 1;
+            });
+        }
+
         return { leads, total };
     }
 
