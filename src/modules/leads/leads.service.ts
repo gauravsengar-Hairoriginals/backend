@@ -274,9 +274,10 @@ export class LeadsService {
                 .where('u.role = :role', { role: UserRole.LEAD_CALLER })
                 .andWhere('u.caller_category = :cat', { cat: callerCategory })
                 .andWhere(
-                    // Match callers with empty regions (any region) OR with this specific region in their jsonb array
-                    '(u.caller_regions = :empty OR :region = ANY(u.caller_regions))',
-                    { empty: '[]', region },
+                    // caller_regions is stored as a comma-separated string (TypeORM simple-array).
+                    // Match callers with no region restriction (empty/null) OR whose regions include this region.
+                    '(u.caller_regions IS NULL OR u.caller_regions = :empty OR u.caller_regions ILIKE :regionLike)',
+                    { empty: '', regionLike: `%${region}%` },
                 )
                 .andWhere('u.is_on_shift = true')
                 .andWhere('u.is_active = true')
