@@ -400,7 +400,7 @@ export class LeadsService {
         qb.addSelect(
             subq => subq
                 .select('COUNT(sub.id)', 'cnt')
-                .from('lead_record', 'sub')
+                .from('lead_records', 'sub')
                 .where('sub.customer_id = customer.id'),
             'totalLeadCount',
         );
