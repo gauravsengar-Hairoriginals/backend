@@ -22,6 +22,18 @@ async function bootstrap() {
     });
   });
 
+  // ── Shopify webhook: capture raw body BEFORE express.json() touches it ─────
+  // Shopify HMAC must be computed on the EXACT bytes sent — not on the parsed JSON.
+  app.use('/api/v1/shopify/webhook', (req: any, _res: any, next: any) => {
+    let raw = Buffer.alloc(0);
+    req.on('data', (chunk: Buffer) => { raw = Buffer.concat([raw, chunk]); });
+    req.on('end', () => {
+      req.rawBody = raw;
+      req.body    = JSON.parse(raw.toString('utf8') || '{}');
+      next();
+    });
+  });
+
   // All other routes: standard JSON + urlencoded
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));

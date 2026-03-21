@@ -29,10 +29,13 @@ export class ShopifyController {
 
         const topic    = (typedReq.headers['x-shopify-topic'] as string) || '';
         const hmac     = (typedReq.headers['x-shopify-hmac-sha256'] as string) || '';
-        const rawBody  = (typedReq as any).rawBody?.toString() ?? JSON.stringify(typedReq.body ?? {});
+        // rawBody is a Buffer set by our dedicated middleware in main.ts
+        const rawBuf   = (typedReq as any).rawBody;
+        const rawBody  = Buffer.isBuffer(rawBuf)
+            ? rawBuf.toString('utf8')
+            : (typeof rawBuf === 'string' ? rawBuf : JSON.stringify(typedReq.body ?? {}));
 
-        this.logger.log(`[SHOPIFY-WEBHOOK] topic="${topic}" hmac="${hmac?.slice(0, 8)}..."`);
-        this.logger.log(`[SHOPIFY-WEBHOOK] Raw body:\n${rawBody}`);
+        this.logger.log(`[SHOPIFY-WEBHOOK] topic="${topic}" rawBodyLen=${rawBody.length} hmac="${hmac?.slice(0, 8)}..."`);
 
         // 1. Verify HMAC
         const valid = this.shopifyService.verifyHmac(rawBody, hmac);

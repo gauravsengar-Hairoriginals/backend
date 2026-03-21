@@ -27,7 +27,12 @@ export class ShopifyService {
             .createHmac('sha256', secret)
             .update(rawBody, 'utf8')
             .digest('base64');
-        return digest === hmacHeader;
+
+        const match = digest === hmacHeader;
+        this.logger.debug(
+            `[SHOPIFY] HMAC check: computed="${digest.slice(0, 12)}..." received="${hmacHeader?.slice(0, 12)}..." match=${match}`,
+        );
+        return match;
     }
 
     /**
