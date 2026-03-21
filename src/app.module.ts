@@ -32,6 +32,7 @@ import { LeadsModule } from './modules/leads/leads.module';
 import { CallLogsModule } from './modules/call-logs/call-logs.module';
 import { PopinModule } from './modules/popin/popin.module';
 import { FacebookModule } from './modules/facebook/facebook.module';
+import { ShopifyModule } from './modules/shopify/shopify.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { FacebookModule } from './modules/facebook/facebook.module';
     CallLogsModule,
     PopinModule,
     FacebookModule,
+    ShopifyModule,
   ],
 })
 export class AppModule { }

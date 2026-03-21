@@ -121,10 +121,6 @@ export class CreateLeadDto {
     @IsOptional()
     preferredExperienceCenter?: string;
 
-    @ApiPropertyOptional({ example: 'Hair Extensions, Hair Toppers' })
-    @IsString()
-    @IsOptional()
-    customerProductInterest?: string;
 
     @ApiPropertyOptional({ example: 'Hair Extensions, Wigs' })
     @IsOptional()

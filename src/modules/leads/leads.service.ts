@@ -134,11 +134,38 @@ export class LeadsService {
                 });
                 customer = await em.save(Customer, customer);
             } else {
+                // Update customer details if new values are provided
+                let customerChanged = false;
+                if (dto.name?.trim() && dto.name.trim() !== customer.name) {
+                    const nameParts2 = dto.name.trim().split(' ');
+                    customer.name      = dto.name.trim();
+                    customer.firstName = nameParts2[0];
+                    customer.lastName  = nameParts2.slice(1).join(' ') || '';
+                    customerChanged = true;
+                }
+                if (dto.city && dto.city !== customer.city) {
+                    customer.city = dto.city;
+                    customerChanged = true;
+                }
+                if (dto.pincode && dto.pincode !== customer.pincode) {
+                    customer.pincode = dto.pincode;
+                    customerChanged = true;
+                }
                 if (!customer.tags?.includes('lead')) {
                     customer.tags = [...(customer.tags || []), 'lead'];
-                    await em.save(Customer, customer);
+                    customerChanged = true;
                 }
+                if (customerChanged) await em.save(Customer, customer);
             }
+
+
+            // Merge UTM fields into specificDetails so they're always persisted in JSONB
+            const utmFields: Record<string, string> = {};
+            if (dto.utm_source)   utmFields.utm_source   = dto.utm_source;
+            if (dto.utm_medium)   utmFields.utm_medium   = dto.utm_medium;
+            if (dto.utm_campaign) utmFields.utm_campaign = dto.utm_campaign;
+            if (dto.utm_term)     utmFields.utm_term     = dto.utm_term;
+            if (dto.utm_content)  utmFields.utm_content  = dto.utm_content;
 
             const leadRecord = em.create(LeadRecord, {
                 customerId: customer.id,
@@ -146,9 +173,9 @@ export class LeadsService {
                 pageType: dto.pageType,
                 leadCategory: this.categorisation.deriveLeadCategory(dto.source, dto.pageType, dto.leadCategory),
                 campaignId: dto.campaignId,
-                specificDetails: dto.specificDetails,
+                specificDetails: { ...(dto.specificDetails ?? {}), ...utmFields },
                 preferredExperienceCenter: dto.preferredExperienceCenter,
-                customerProductInterest: dto.customerProductInterest,
+                customerProductInterest: (dto as any).customerProductInterest,
                 consultationType: (dto as any).consultationType,
                 appointmentBooked: dto.appointmentBooked,
                 bookedDate: dto.bookedDate,
@@ -157,6 +184,7 @@ export class LeadsService {
                 status: LeadStatus.NEW,
                 isRevisit: false, // Will update below if prior leads exist
             });
+
 
             // Check if this customer already had a prior lead record
             const priorLeadCount = await em.count(LeadRecord, {
@@ -196,6 +224,14 @@ export class LeadsService {
         return this.leadRecordRepo
             .createQueryBuilder('lead')
             .where(`lead.specific_details->>'fb_leadgen_id' = :leadgenId`, { leadgenId })
+            .getOne();
+    }
+
+    /** Generic lookup by a top-level key inside the specific_details JSONB column. */
+    async findBySpecificDetail(key: string, value: string): Promise<LeadRecord | null> {
+        return this.leadRecordRepo
+            .createQueryBuilder('lead')
+            .where(`lead.specific_details->>:key = :value`, { key, value })
             .getOne();
     }
 
@@ -360,7 +396,22 @@ export class LeadsService {
             }
         }
 
-        const [leads, total] = await qb.getManyAndCount();
+        // Add global duplicate count — total leads for this customer across ALL records
+        qb.addSelect(
+            subq => subq
+                .select('COUNT(sub.id)', 'cnt')
+                .from('lead_record', 'sub')
+                .where('sub.customer_id = customer.id'),
+            'totalLeadCount',
+        );
+
+        const rawAndEntities = await qb.getRawAndEntities();
+        const leads = rawAndEntities.entities.map((lead, i) => {
+            const raw = rawAndEntities.raw[i];
+            (lead as any).totalLeadCount = parseInt(raw?.totalLeadCount ?? '1', 10);
+            return lead;
+        });
+        const total = await qb.getCount();
         return { leads, total };
     }
 

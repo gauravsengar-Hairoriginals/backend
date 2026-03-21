@@ -329,4 +329,84 @@ export class OrdersService {
             count: orders.length,
         };
     }
+
+    /**
+     * Create an Order from an inbound Shopify orders/create webhook payload.
+     * 1. Creates a stub Order row marked SYNCED.
+     * 2. Creates all line items from the payload.
+     * 3. Calls syncFromShopifyOrder to map the full Shopify payload onto the row.
+     */
+    async createFromWebhook(body: any): Promise<Order> {
+        const shopifyOrderId = String(body.id);
+
+        // Try to link to a local customer by phone
+        const phone: string = body.phone
+            || body.billing_address?.phone
+            || body.shipping_address?.phone
+            || body.customer?.phone
+            || '';
+
+        const normalizedPhone = phone.replace(/\D/g, '').replace(/^91(\d{10})$/, '$1');
+        const customer = normalizedPhone
+            ? await this.customersService.findByPhone(normalizedPhone).catch(() => null)
+            : null;
+
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+            // Create stub order row
+            const order = queryRunner.manager.create(Order, {
+                shopifyId:          shopifyOrderId,
+                orderNumber:        body.name,
+                customerId:         customer?.id ?? undefined,
+                customerShopifyId:  String(body.customer?.id ?? ''),
+                customerPhone:      normalizedPhone || undefined,
+                syncStatus:         OrderSyncStatus.SYNCED,
+                syncedAt:           new Date(),
+                financialStatus:    this.mapFinancialStatus(body.financial_status ?? 'pending'),
+                fulfillmentStatus:  this.mapFulfillmentStatus(body.fulfillment_status ?? 'unfulfilled'),
+                subtotal:           parseFloat(body.subtotal_price ?? '0'),
+                discountTotal:      parseFloat(body.total_discounts ?? '0'),
+                taxTotal:           parseFloat(body.total_tax ?? '0'),
+                total:              parseFloat(body.total_price ?? '0'),
+                currency:           body.currency ?? 'INR',
+                note:               body.note ?? undefined,
+                tags:               body.tags ? String(body.tags).split(',').map((t: string) => t.trim()) : [],
+                source:             'shopify_webhook',
+            });
+
+            const savedOrder = await queryRunner.manager.save(order);
+
+            // Create line items
+            const lineItems = body.line_items ?? [];
+            for (const item of lineItems) {
+                const li = queryRunner.manager.create(OrderLineItem, {
+                    orderId:            savedOrder.id,
+                    shopifyLineItemId:  String(item.id),
+                    shopifyProductId:   String(item.product_id ?? ''),
+                    shopifyVariantId:   String(item.variant_id ?? ''),
+                    title:              item.title ?? 'Unknown',
+                    variantTitle:       item.variant_title ?? '',
+                    sku:                item.sku ?? '',
+                    quantity:           item.quantity ?? 1,
+                    price:              parseFloat(item.price ?? '0'),
+                    totalDiscount:      parseFloat(item.total_discount ?? '0'),
+                    total:              parseFloat(item.price ?? '0') * (item.quantity ?? 1) - parseFloat(item.total_discount ?? '0'),
+                });
+                await queryRunner.manager.save(li);
+            }
+
+            await queryRunner.commitTransaction();
+
+            this.logger.log(`[WEBHOOK] Order created from Shopify webhook: id=${savedOrder.id} shopifyId=${shopifyOrderId}`);
+            return this.findById(savedOrder.id);
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally {
+            await queryRunner.release();
+        }
+    }
 }

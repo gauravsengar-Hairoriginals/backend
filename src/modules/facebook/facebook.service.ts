@@ -353,7 +353,10 @@ export class FacebookService {
         const utmContent  = get('utm_content',  'UTM_CONTENT');
         const utmTerm     = get('utm_term',     'UTM_TERM');
 
-        const name = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+        // Build name: prefer split first+last, fall back to plain 'name' / 'FULL_NAME' / 'full_name'
+        const fullNameFallback = get('name', 'FULL_NAME', 'full_name', 'NAME') || '';
+        const name = [firstName, lastName].filter(Boolean).join(' ') || fullNameFallback || 'Unknown';
+
 
         if (!phone) {
             this.logger.warn('[LEAD-PUSH] ❌ No phone number found — aborting');
