@@ -18,11 +18,20 @@ export class ShopifyService {
      * If SHOPIFY_WEBHOOK_SECRET is not set, verification is skipped (dev mode).
      */
     verifyHmac(rawBody: string, hmacHeader: string): boolean {
-        const secret = process.env.SHOPIFY_WEBHOOK_SECRET;
+        // Emergency bypass — set SHOPIFY_SKIP_HMAC=true in .env to skip verification
+        if (process.env.SHOPIFY_SKIP_HMAC === 'true') {
+            this.logger.warn('[SHOPIFY] ⚠️  HMAC verification SKIPPED (SHOPIFY_SKIP_HMAC=true)');
+            return true;
+        }
+
+        const secret = process.env.SHOPIFY_WEBHOOK_SECRET?.trim();
         if (!secret) {
             this.logger.warn('[SHOPIFY] SHOPIFY_WEBHOOK_SECRET not set — skipping HMAC verification');
             return true;
         }
+
+        this.logger.debug(`[SHOPIFY] Using secret starting with: "${secret.slice(0, 8)}..." (len=${secret.length})`);
+
         const digest = crypto
             .createHmac('sha256', secret)
             .update(rawBody, 'utf8')
@@ -30,7 +39,7 @@ export class ShopifyService {
 
         const match = digest === hmacHeader;
         this.logger.debug(
-            `[SHOPIFY] HMAC check: computed="${digest.slice(0, 12)}..." received="${hmacHeader?.slice(0, 12)}..." match=${match}`,
+            `[SHOPIFY] HMAC: computed="${digest.slice(0, 12)}..." received="${hmacHeader?.slice(0, 12)}..." match=${match}`,
         );
         return match;
     }
