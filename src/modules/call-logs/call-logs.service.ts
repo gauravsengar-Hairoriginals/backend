@@ -149,6 +149,7 @@ export class CallLogsService {
                     customerId: customer.id,
                     source: 'Outbound Call',
                     status: LeadStatus.NEW,
+                    leadCategory: 'WEBSITE',
                     isRevisit: false,
                 }),
             );
@@ -277,6 +278,7 @@ export class CallLogsService {
                 customerId: customer.id,
                 source: 'Inbound IVR',
                 status: LeadStatus.NEW,
+                leadCategory: 'WEBSITE',
                 isRevisit: priorCount > 0,
             }),
         );
