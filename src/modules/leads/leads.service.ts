@@ -310,27 +310,51 @@ export class LeadsService {
             }
 
             const region = await this.categorisation.cityToRegion(lead.customer?.city);
-            this.logger.log(`[ASSIGN] Round-robin: callerCat="${callerCategory}" region="${region}"`);
+            const isRestOfIndia = region === 'REST_OF_INDIA';
+            this.logger.log(`[ASSIGN] Round-robin: callerCat="${callerCategory}" region="${region}" isRestOfIndia=${isRestOfIndia}`);
 
-            const buildQuery = (requireShift: boolean) =>
+            /**
+             * Region filter logic:
+             *  - Specific region (e.g. DELHI): prefer callers with DELHI, also accept REST_OF_INDIA
+             *  - No city → REST_OF_INDIA: only callers explicitly covering REST_OF_INDIA
+             *
+             * In both cases NULL/empty regions are excluded — those are unconfigured callers
+             * and should not receive assignments automatically.
+             */
+            const buildQuery = (requireShift: boolean, regionFilter: string) =>
                 this.userRepo
                     .createQueryBuilder('u')
                     .where('u.role = :role', { role: UserRole.LEAD_CALLER })
                     .andWhere('u.caller_category = :cat', { cat: callerCategory })
-                    .andWhere(
-                        '(u.caller_regions IS NULL OR u.caller_regions = :empty OR u.caller_regions ILIKE :regionLike)',
-                        { empty: '', regionLike: `%${region}%` },
-                    )
+                    .andWhere('u.caller_regions ILIKE :regionLike', { regionLike: `%${regionFilter}%` })
                     .andWhere('u.is_active = true')
                     .andWhere(requireShift ? 'u.is_on_shift = true' : '1=1')
                     .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST');
 
-            let callers = await buildQuery(true).getMany();
-            this.logger.log(`[ASSIGN] On-shift callers: ${callers.length}`);
+            // Helper: try shift=true first, then shift=false
+            const queryWithFallback = async (regionFilter: string): Promise<User[]> => {
+                let callers = await buildQuery(true, regionFilter).getMany();
+                this.logger.log(`[ASSIGN] On-shift callers (${regionFilter}): ${callers.length}`);
+                if (callers.length === 0) {
+                    callers = await buildQuery(false, regionFilter).getMany();
+                    this.logger.warn(`[ASSIGN] Shift fallback (${regionFilter}): ${callers.length}`);
+                }
+                return callers;
+            };
+
+            let callers: User[] = [];
+
+            if (!isRestOfIndia) {
+                // Step 1: try to find callers for the specific region
+                callers = await queryWithFallback(region);
+            }
 
             if (callers.length === 0) {
-                callers = await buildQuery(false).getMany();
-                this.logger.warn(`[ASSIGN] Shift fallback — any active callers: ${callers.length}`);
+                // Step 2: fall back to REST_OF_INDIA callers
+                callers = await queryWithFallback('REST_OF_INDIA');
+                if (callers.length > 0) {
+                    this.logger.log(`[ASSIGN] Fell back to REST_OF_INDIA callers: ${callers.length}`);
+                }
             }
 
             if (callers.length === 0) {
