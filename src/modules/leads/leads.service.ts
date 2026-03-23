@@ -36,6 +36,8 @@ export interface LeadsQuery {
     leadCategory?: string;  // EC | HT | WEBSITE | POPIN
     // Tab filter
     tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped';
+    // Deduplication: show only the latest lead per customer phone
+    deduplicateByPhone?: boolean;
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -501,6 +503,17 @@ export class LeadsService {
             } else if (tab === 'all') {
                 qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
             }
+        }
+
+        // Deduplicate by phone: show only the latest lead per customer phone number
+        if (query.deduplicateByPhone) {
+            qb.andWhere(`lr.id IN (
+                SELECT DISTINCT ON (c.phone) lr2.id
+                FROM lead_records lr2
+                JOIN customers c ON c.id = lr2.customer_id
+                WHERE c.phone IS NOT NULL AND c.phone <> ''
+                ORDER BY c.phone, lr2.created_at DESC
+            )`);
         }
 
         // Fetch paginated results

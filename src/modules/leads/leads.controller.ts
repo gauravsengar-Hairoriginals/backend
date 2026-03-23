@@ -69,13 +69,15 @@ export class LeadsController {
         @Query('assignedTo') assignedTo?: string,
         @Query('leadCategory') leadCategory?: string,
         @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
+        @Query('deduplicateByPhone') deduplicateByPhone?: string,
         @CurrentUser() user?: User,
     ) {
         return this.leadsService.findAll({
             page: +(page ?? 1),
             limit: +(limit ?? 20),
             search, status, assignedToId, fromDate, toDate,
-            name, phone, city, source, campaign, assignedTo, leadCategory, tab
+            name, phone, city, source, campaign, assignedTo, leadCategory, tab,
+            deduplicateByPhone: deduplicateByPhone === 'true',
         }, user);
     }
 
