@@ -10,9 +10,10 @@ import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { LeadCategorisationService } from '../../common/services/lead-categorisation.service';
 import { CityRegion } from '../admin/entities/city-region.entity';
+import { CallLog } from '../call-logs/entities/call-log.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([LeadRecord, LeadHistory, LeadProduct, LeadProductOption, Customer, User, CityRegion])],
+    imports: [TypeOrmModule.forFeature([LeadRecord, LeadHistory, LeadProduct, LeadProductOption, Customer, User, CityRegion, CallLog])],
     controllers: [LeadsController],
     providers: [LeadsService, LeadCategorisationService],
     exports: [LeadsService, LeadCategorisationService],

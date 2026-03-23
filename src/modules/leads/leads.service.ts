@@ -13,6 +13,7 @@ import { LeadRecord, LeadStatus } from './entities/lead-record.entity';
 import { LeadHistory } from './entities/lead-history.entity';
 import { LeadProduct } from './entities/lead-product.entity';
 import { LeadProductOption } from './entities/lead-product-option.entity';
+import { CallLog } from '../call-logs/entities/call-log.entity';
 import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, CreateLeadProductDto } from './dto/create-lead.dto';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { LeadCategorisationService } from '../../common/services/lead-categorisation.service';
@@ -103,6 +104,8 @@ export class LeadsService {
         private readonly leadProductRepo: Repository<LeadProduct>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        @InjectRepository(CallLog)
+        private readonly callLogRepo: Repository<CallLog>,
         private readonly dataSource: DataSource,
         private readonly categorisation: LeadCategorisationService,
     ) { }
@@ -279,6 +282,24 @@ export class LeadsService {
                     },
                 });
                 this.logger.log(`[ASSIGN] POPIN caller found: ${caller?.id ?? 'none'}`);
+                assignedUserId = caller?.id ?? null;
+            }
+        } else if (freshLead.source === 'Inbound IVR') {
+            // Inbound IVR: assign to the agent who called this customer most recently
+            const recentLog = await this.callLogRepo.findOne({
+                where: { customerId: freshLead.customerId },
+                order: { createdAt: 'DESC' },
+            });
+            this.logger.log(`[ASSIGN] Inbound IVR — most recent CallLog agentId="${recentLog?.agentId}" agentNumber="${recentLog?.agentNumber}"`);
+
+            if (recentLog?.agentId) {
+                // Prefer the agentId FK if set
+                assignedUserId = recentLog.agentId;
+            } else if (recentLog?.agentNumber) {
+                // Fallback: match by phone number
+                const caller = await this.userRepo.findOne({
+                    where: { phone: normalizePhone(recentLog.agentNumber), role: UserRole.LEAD_CALLER },
+                });
                 assignedUserId = caller?.id ?? null;
             }
         } else {
@@ -1207,5 +1228,62 @@ export class LeadsService {
             .execute();
         this.logger.log(`Bulk deleted ${result.affected} lead records`);
         return { deleted: result.affected ?? 0 };
+    }
+    // ── Bulk-Assign Qkonnect / Inbound IVR Leads ──────────────────────────
+    async bulkAssignQkonnectLeads(): Promise<{ assigned: number; skipped: number; details: any[] }> {
+        // Find all IVR / qkonnect leads (assigned or not — re-assign to the last caller)
+        const ivrSources = ['Inbound IVR', 'IVR', 'Qkonnect', 'inbound_ivr'];
+        const leads = await this.leadRecordRepo.createQueryBuilder('lr')
+            .where('lr.source IN (:...sources)', { sources: ivrSources })
+            .getMany();
+
+        this.logger.log(`[BULK-ASSIGN] Found ${leads.length} IVR/qkonnect leads to process`);
+
+        let assigned = 0;
+        let skipped = 0;
+        const details: any[] = [];
+
+        for (const lead of leads) {
+            // Find the most recent call log for the associated customer
+            const recentLog = await this.callLogRepo.findOne({
+                where: { customerId: lead.customerId },
+                order: { createdAt: 'DESC' },
+            });
+
+            if (!recentLog) {
+                skipped++;
+                details.push({ leadId: lead.id, reason: 'no_call_log' });
+                continue;
+            }
+
+            let agentUser: User | null = null;
+
+            if (recentLog.agentId) {
+                agentUser = await this.userRepo.findOne({ where: { id: recentLog.agentId } });
+            }
+
+            if (!agentUser && recentLog.agentNumber) {
+                agentUser = await this.userRepo.findOne({
+                    where: { phone: normalizePhone(recentLog.agentNumber), role: UserRole.LEAD_CALLER },
+                });
+            }
+
+            if (!agentUser) {
+                skipped++;
+                details.push({ leadId: lead.id, reason: 'agent_not_found', agentNumber: recentLog.agentNumber });
+                continue;
+            }
+
+            await this.leadRecordRepo.update(lead.id, {
+                assignedToId: agentUser.id,
+                assignedToName: agentUser.name,
+            });
+            assigned++;
+            details.push({ leadId: lead.id, assignedTo: agentUser.name, agentId: agentUser.id });
+            this.logger.log(`[BULK-ASSIGN] Lead ${lead.id} → "${agentUser.name}"`);
+        }
+
+        this.logger.log(`[BULK-ASSIGN] Done: ${assigned} assigned, ${skipped} skipped`);
+        return { assigned, skipped, details };
     }
 }

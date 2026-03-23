@@ -123,6 +123,14 @@ export class LeadsController {
         return this.leadsService.autoAssign(onlyOnline);
     }
 
+    // ── Admin: bulk-assign all Inbound IVR / qkonnect leads to last agent ────
+    @Post('bulk-assign-qkonnect')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    bulkAssignQkonnect() {
+        return this.leadsService.bulkAssignQkonnectLeads();
+    }
+
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────
     @Patch('bulk-assign')
     @UseGuards(JwtAuthGuard, RolesGuard)
