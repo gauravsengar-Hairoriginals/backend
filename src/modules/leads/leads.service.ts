@@ -238,74 +238,79 @@ export class LeadsService {
             .getOne();
     }
 
-    // ── Auto-Assignment Engine ─────────────────────────────────────────────
-    private async autoAssignLead(lead: LeadRecord): Promise<void> {
-        // Refresh to get fresh customer relation
-        const freshLead = await this.leadRecordRepo.findOne({
-            where: { id: lead.id },
+    // ── Assignment Engine (central, public) ───────────────────────────────
+    /**
+     * Assign a lead to the best available caller — single source of truth.
+     *
+     * Priority order:
+     *  1. Direct phone match if `agentNumber` supplied (IVR / qkonnect path).
+     *  2. POPIN: match via specificDetails.agentPhone.
+     *  3. Round-robin by callerCategory + region; shift-first with active-fallback.
+     *  4. If lead has no category → set WEBSITE so round-robin can still run.
+     */
+    async assignLeadById(leadId: string, agentNumber?: string): Promise<void> {
+        const lead = await this.leadRecordRepo.findOne({
+            where: { id: leadId },
             relations: ['customer'],
         });
-        if (!freshLead) {
-            this.logger.warn(`[ASSIGN] Lead ${lead.id} not found — skipping`);
+        if (!lead) {
+            this.logger.warn(`[ASSIGN] Lead ${leadId} not found — skipping`);
             return;
         }
 
-        const category = freshLead.leadCategory;
-        this.logger.log(`[ASSIGN] Lead ${lead.id}: category="${category}", city="${freshLead.customer?.city}"`);
-
-        if (!category) {
-            this.logger.warn(`[ASSIGN] Lead ${lead.id}: no leadCategory — skipping`);
-            return;
-        }
-
-        const callerCategory = this.categorisation.callerCategoryFor(category);
-        this.logger.log(`[ASSIGN] callerCategory="${callerCategory}"`);
-
-        if (!callerCategory) {
-            this.logger.warn(`[ASSIGN] Lead ${lead.id}: no callerCategory mapping for "${category}" — skipping`);
-            return;
-        }
+        this.logger.log(`[ASSIGN] Lead ${leadId}: category="${lead.leadCategory}", city="${lead.customer?.city}", agentNumber="${agentNumber ?? '-'}"`);
 
         let assignedUserId: string | null = null;
 
-        if (category === 'POPIN') {
-            // Assign to the caller who handled the popin/IVR call (matched by agentPhone)
-            const agentPhone = freshLead.specificDetails?.agentPhone
-                ?? freshLead.specificDetails?.agent_phone;
-            this.logger.log(`[ASSIGN] POPIN lead — agentPhone="${agentPhone}"`);
+        // ── 1. Direct phone match (IVR / qkonnect) ────────────────────────
+        if (agentNumber && !assignedUserId) {
+            const normalized = normalizePhone(agentNumber);
+            const caller = await this.userRepo.findOne({
+                where: [
+                    { phone: normalized, role: UserRole.LEAD_CALLER },
+                    { phone: agentNumber, role: UserRole.LEAD_CALLER },
+                ],
+            });
+            if (caller) {
+                assignedUserId = caller.id;
+                this.logger.log(`[ASSIGN] Direct phone match: "${caller.name}" (agentNumber="${agentNumber}")`);
+            } else {
+                this.logger.warn(`[ASSIGN] No LEAD_CALLER for agentNumber="${agentNumber}" — falling back to round-robin`);
+            }
+        }
+
+        // ── 2. POPIN specificDetails match ────────────────────────────────
+        if (!assignedUserId && lead.leadCategory === 'POPIN') {
+            const agentPhone = lead.specificDetails?.agentPhone ?? lead.specificDetails?.agent_phone;
             if (agentPhone) {
                 const caller = await this.userRepo.findOne({
-                    where: {
-                        phone: normalizePhone(agentPhone),
-                        role: UserRole.LEAD_CALLER,
-                        isOnShift: true,
-                    },
+                    where: { phone: normalizePhone(agentPhone), role: UserRole.LEAD_CALLER },
                 });
-                this.logger.log(`[ASSIGN] POPIN caller found: ${caller?.id ?? 'none'}`);
-                assignedUserId = caller?.id ?? null;
+                if (caller) {
+                    assignedUserId = caller.id;
+                    this.logger.log(`[ASSIGN] POPIN direct match: "${caller.name}"`);
+                }
             }
-        } else if (freshLead.source === 'Inbound IVR') {
-            // Inbound IVR: assign to the agent who called this customer most recently
-            const recentLog = await this.callLogRepo.findOne({
-                where: { customerId: freshLead.customerId },
-                order: { createdAt: 'DESC' },
-            });
-            this.logger.log(`[ASSIGN] Inbound IVR — most recent CallLog agentId="${recentLog?.agentId}" agentNumber="${recentLog?.agentNumber}"`);
+        }
 
-            if (recentLog?.agentId) {
-                // Prefer the agentId FK if set
-                assignedUserId = recentLog.agentId;
-            } else if (recentLog?.agentNumber) {
-                // Fallback: match by phone number
-                const caller = await this.userRepo.findOne({
-                    where: { phone: normalizePhone(recentLog.agentNumber), role: UserRole.LEAD_CALLER },
-                });
-                assignedUserId = caller?.id ?? null;
+        // ── 3. Round-robin by category + region ───────────────────────────
+        if (!assignedUserId) {
+            // Default to WEBSITE if no category is set
+            let category = lead.leadCategory;
+            if (!category) {
+                category = 'WEBSITE';
+                await this.leadRecordRepo.update(leadId, { leadCategory: 'WEBSITE' });
+                this.logger.warn(`[ASSIGN] Lead ${leadId} had no category — defaulted to WEBSITE`);
             }
-        } else {
-            // Round-robin by caller category + region
-            const region = await this.categorisation.cityToRegion(freshLead.customer?.city);
-            this.logger.log(`[ASSIGN] region="${region}"`);
+
+            const callerCategory = this.categorisation.callerCategoryFor(category);
+            if (!callerCategory) {
+                this.logger.warn(`[ASSIGN] No callerCategory mapping for "${category}" — skipping`);
+                return;
+            }
+
+            const region = await this.categorisation.cityToRegion(lead.customer?.city);
+            this.logger.log(`[ASSIGN] Round-robin: callerCat="${callerCategory}" region="${region}"`);
 
             const buildQuery = (requireShift: boolean) =>
                 this.userRepo
@@ -320,40 +325,39 @@ export class LeadsService {
                     .andWhere(requireShift ? 'u.is_on_shift = true' : '1=1')
                     .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST');
 
-            // First try: only on-shift callers
             let callers = await buildQuery(true).getMany();
-            this.logger.log(`[ASSIGN] On-shift callers for cat="${callerCategory}" region="${region}": ${callers.length}`);
+            this.logger.log(`[ASSIGN] On-shift callers: ${callers.length}`);
 
-            // Fallback: if no one is on shift, try all active callers (shift not required)
             if (callers.length === 0) {
                 callers = await buildQuery(false).getMany();
-                this.logger.warn(`[ASSIGN] No on-shift callers — falling back to any active caller. Found: ${callers.length}`);
+                this.logger.warn(`[ASSIGN] Shift fallback — any active callers: ${callers.length}`);
             }
 
-            // Extra debug: check if category filter is the bottleneck
             if (callers.length === 0) {
-                const anyCatCount = await this.userRepo.count({
-                    where: { role: UserRole.LEAD_CALLER, isActive: true },
-                });
-                this.logger.warn(`[ASSIGN] Zero callers found. Total active LEAD_CALLERs in DB (any category): ${anyCatCount}`);
+                const total = await this.userRepo.count({ where: { role: UserRole.LEAD_CALLER, isActive: true } });
+                this.logger.warn(`[ASSIGN] ❌ Zero callers — total active LEAD_CALLERs in DB: ${total}`);
             }
 
-            if (callers.length > 0) {
-                assignedUserId = callers[0].id;
-            }
+            if (callers.length > 0) assignedUserId = callers[0].id;
         }
 
+        // ── 4. Commit ─────────────────────────────────────────────────────
         if (assignedUserId) {
             const assignee = await this.userRepo.findOne({ where: { id: assignedUserId } });
-            await this.leadRecordRepo.update(lead.id, {
+            await this.leadRecordRepo.update(leadId, {
                 assignedToId: assignedUserId,
                 assignedToName: assignee?.name ?? '',
             });
             await this.userRepo.update(assignedUserId, { lastAssignedAt: new Date() });
-            this.logger.log(`[ASSIGN] ✅ Lead ${lead.id} assigned to "${assignee?.name}" (${assignedUserId}) [${category}]`);
+            this.logger.log(`[ASSIGN] ✅ Lead ${leadId} → "${assignee?.name}" (${assignedUserId})`);
         } else {
-            this.logger.warn(`[ASSIGN] ❌ Lead ${lead.id}: no available caller for category="${category}" callerCat="${callerCategory}"`);
+            this.logger.warn(`[ASSIGN] ❌ Lead ${leadId}: no caller found after all fallbacks`);
         }
+    }
+
+    /** Thin wrapper so create() can fire-and-forget without changing its call site */
+    private async autoAssignLead(lead: LeadRecord): Promise<void> {
+        return this.assignLeadById(lead.id);
     }
 
     // ── Find All ──────────────────────────────────────────────────────────
