@@ -242,13 +242,26 @@ export class LeadsService {
             where: { id: lead.id },
             relations: ['customer'],
         });
-        if (!freshLead) return;
+        if (!freshLead) {
+            this.logger.warn(`[ASSIGN] Lead ${lead.id} not found — skipping`);
+            return;
+        }
 
         const category = freshLead.leadCategory;
-        if (!category) return;
+        this.logger.log(`[ASSIGN] Lead ${lead.id}: category="${category}", city="${freshLead.customer?.city}"`);
+
+        if (!category) {
+            this.logger.warn(`[ASSIGN] Lead ${lead.id}: no leadCategory — skipping`);
+            return;
+        }
 
         const callerCategory = this.categorisation.callerCategoryFor(category);
-        if (!callerCategory) return;
+        this.logger.log(`[ASSIGN] callerCategory="${callerCategory}"`);
+
+        if (!callerCategory) {
+            this.logger.warn(`[ASSIGN] Lead ${lead.id}: no callerCategory mapping for "${category}" — skipping`);
+            return;
+        }
 
         let assignedUserId: string | null = null;
 
@@ -256,6 +269,7 @@ export class LeadsService {
             // Assign to the caller who handled the popin/IVR call (matched by agentPhone)
             const agentPhone = freshLead.specificDetails?.agentPhone
                 ?? freshLead.specificDetails?.agent_phone;
+            this.logger.log(`[ASSIGN] POPIN lead — agentPhone="${agentPhone}"`);
             if (agentPhone) {
                 const caller = await this.userRepo.findOne({
                     where: {
@@ -264,25 +278,44 @@ export class LeadsService {
                         isOnShift: true,
                     },
                 });
+                this.logger.log(`[ASSIGN] POPIN caller found: ${caller?.id ?? 'none'}`);
                 assignedUserId = caller?.id ?? null;
             }
         } else {
             // Round-robin by caller category + region
             const region = await this.categorisation.cityToRegion(freshLead.customer?.city);
-            const callers = await this.userRepo
-                .createQueryBuilder('u')
-                .where('u.role = :role', { role: UserRole.LEAD_CALLER })
-                .andWhere('u.caller_category = :cat', { cat: callerCategory })
-                .andWhere(
-                    // caller_regions is stored as a comma-separated string (TypeORM simple-array).
-                    // Match callers with no region restriction (empty/null) OR whose regions include this region.
-                    '(u.caller_regions IS NULL OR u.caller_regions = :empty OR u.caller_regions ILIKE :regionLike)',
-                    { empty: '', regionLike: `%${region}%` },
-                )
-                .andWhere('u.is_on_shift = true')
-                .andWhere('u.is_active = true')
-                .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST')
-                .getMany();
+            this.logger.log(`[ASSIGN] region="${region}"`);
+
+            const buildQuery = (requireShift: boolean) =>
+                this.userRepo
+                    .createQueryBuilder('u')
+                    .where('u.role = :role', { role: UserRole.LEAD_CALLER })
+                    .andWhere('u.caller_category = :cat', { cat: callerCategory })
+                    .andWhere(
+                        '(u.caller_regions IS NULL OR u.caller_regions = :empty OR u.caller_regions ILIKE :regionLike)',
+                        { empty: '', regionLike: `%${region}%` },
+                    )
+                    .andWhere('u.is_active = true')
+                    .andWhere(requireShift ? 'u.is_on_shift = true' : '1=1')
+                    .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST');
+
+            // First try: only on-shift callers
+            let callers = await buildQuery(true).getMany();
+            this.logger.log(`[ASSIGN] On-shift callers for cat="${callerCategory}" region="${region}": ${callers.length}`);
+
+            // Fallback: if no one is on shift, try all active callers (shift not required)
+            if (callers.length === 0) {
+                callers = await buildQuery(false).getMany();
+                this.logger.warn(`[ASSIGN] No on-shift callers — falling back to any active caller. Found: ${callers.length}`);
+            }
+
+            // Extra debug: check if category filter is the bottleneck
+            if (callers.length === 0) {
+                const anyCatCount = await this.userRepo.count({
+                    where: { role: UserRole.LEAD_CALLER, isActive: true },
+                });
+                this.logger.warn(`[ASSIGN] Zero callers found. Total active LEAD_CALLERs in DB (any category): ${anyCatCount}`);
+            }
 
             if (callers.length > 0) {
                 assignedUserId = callers[0].id;
@@ -296,9 +329,9 @@ export class LeadsService {
                 assignedToName: assignee?.name ?? '',
             });
             await this.userRepo.update(assignedUserId, { lastAssignedAt: new Date() });
-            this.logger.log(`Lead ${lead.id} auto-assigned to ${assignedUserId} [${category}]`);
+            this.logger.log(`[ASSIGN] ✅ Lead ${lead.id} assigned to "${assignee?.name}" (${assignedUserId}) [${category}]`);
         } else {
-            this.logger.warn(`Lead ${lead.id}: no available caller for category=${category}`);
+            this.logger.warn(`[ASSIGN] ❌ Lead ${lead.id}: no available caller for category="${category}" callerCat="${callerCategory}"`);
         }
     }
 
