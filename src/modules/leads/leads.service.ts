@@ -262,6 +262,30 @@ export class LeadsService {
 
         let assignedUserId: string | null = null;
 
+        // ── 0. Sticky caller — re-use the caller from any prior lead for this customer ──
+        //   "Same customer always goes to the same caller."
+        //   Only use a prior assignee if that user is still active.
+        if (lead.customerId) {
+            const priorLead = await this.leadRecordRepo.findOne({
+                where: {
+                    customerId: lead.customerId,
+                    assignedToId: Not(IsNull()),
+                },
+                order: { createdAt: 'DESC' },
+            });
+            if (priorLead?.assignedToId && priorLead.id !== leadId) {
+                const priorCaller = await this.userRepo.findOne({
+                    where: { id: priorLead.assignedToId, isActive: true },
+                });
+                if (priorCaller) {
+                    assignedUserId = priorCaller.id;
+                    this.logger.log(`[ASSIGN] ♻️ Sticky caller: re-using "${priorCaller.name}" from prior lead ${priorLead.id}`);
+                } else {
+                    this.logger.warn(`[ASSIGN] Prior caller ${priorLead.assignedToId} is inactive — falling through to normal assignment`);
+                }
+            }
+        }
+
         // ── 1. Direct phone match (IVR / qkonnect) ────────────────────────
         if (agentNumber && !assignedUserId) {
             const normalized = normalizePhone(agentNumber);
