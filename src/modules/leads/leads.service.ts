@@ -350,7 +350,7 @@ export class LeadsService {
                     .createQueryBuilder('u')
                     .where('u.role = :role', { role: UserRole.LEAD_CALLER })
                     .andWhere('u.caller_category = :cat', { cat: callerCategory })
-                    .andWhere('u.caller_regions ILIKE :regionLike', { regionLike: `%${regionFilter}%` })
+                    .andWhere('CAST(u.caller_regions AS text) ILIKE :regionLike', { regionLike: `%${regionFilter}%` })
                     .andWhere('u.is_active = true')
                     .andWhere(requireShift ? 'u.is_on_shift = true' : '1=1')
                     .orderBy('u.last_assigned_at', 'ASC', 'NULLS FIRST');
