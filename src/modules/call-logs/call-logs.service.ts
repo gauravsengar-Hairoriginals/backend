@@ -7,6 +7,9 @@ import { Customer } from '../customers/entities/customer.entity';
 import { CustomersService } from '../customers/customers.service';
 import { CustomerScope } from '../customers/dto/create-customer.dto';
 import { LeadRecord, LeadStatus } from '../leads/entities/lead-record.entity';
+import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
+import { normalizePhone } from '../../common/utils/phone.util';
 
 @Injectable()
 export class CallLogsService {
@@ -25,6 +28,8 @@ export class CallLogsService {
         private readonly customerRepo: Repository<Customer>,
         @InjectRepository(LeadRecord)
         private readonly leadRepo: Repository<LeadRecord>,
+        @InjectRepository(User)
+        private readonly userRepo: Repository<User>,
         private readonly customersService: CustomersService,
     ) { }
 
@@ -184,6 +189,9 @@ export class CallLogsService {
         );
         this.logger.log(`[OUTBOUND] ✅ Call log id=${callLog.id} linked to lead=${lead.id} customer=${customer.id}`);
 
+        // Real-time assignment: assign the lead to the agent who made the call
+        await this.assignLeadToAgentByPhone(lead.id, agentNumber, 'Outbound');
+
         // Notify LeadSquared (fire-and-forget)
         this.notifyLeadSquared(params);
     }
@@ -310,8 +318,33 @@ export class CallLogsService {
         this.logger.log(`[INBOUND] Step 6: ✅ Created call log id=${callLog.id}, status=${callLog.status}`);
         this.logger.log(`[INBOUND] ✅ COMPLETE — Lead=${lead.id} Customer=${customer.id} CallLog=${callLog.id}`);
 
+        // Real-time assignment: assign the lead to the agent who handled the IVR call
+        await this.assignLeadToAgentByPhone(lead.id, agentNumber, 'Inbound IVR');
+
         // Notify LeadSquared (fire-and-forget)
         this.notifyLeadSquared(params);
+    }
+
+    // ── Helper: assign a lead to the user whose phone matches agentNumber ─────
+    private async assignLeadToAgentByPhone(leadId: string, agentNumber: string, context: string): Promise<void> {
+        if (!agentNumber) return;
+        const normalized = normalizePhone(agentNumber);
+        const agent = await this.userRepo.findOne({
+            where: [
+                { phone: normalized, role: UserRole.LEAD_CALLER },
+                { phone: agentNumber, role: UserRole.LEAD_CALLER },
+            ],
+        });
+        if (!agent) {
+            this.logger.warn(`[ASSIGN:${context}] No LEAD_CALLER found for agentNumber="${agentNumber}" — lead ${leadId} unassigned`);
+            return;
+        }
+        await this.leadRepo.update(leadId, {
+            assignedToId: agent.id,
+            assignedToName: agent.name,
+        });
+        await this.userRepo.update(agent.id, { lastAssignedAt: new Date() });
+        this.logger.log(`[ASSIGN:${context}] ✅ Lead ${leadId} → "${agent.name}" (${agent.id})`);
     }
 
     // ── Private: fire-and-forget POST to LeadSquared telephony API ─────────────
