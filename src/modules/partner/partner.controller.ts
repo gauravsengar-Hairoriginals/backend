@@ -9,7 +9,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdatePartnerProfileDto } from './dto/update-profile.dto';
 
 @Controller('api/v1/partner')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -53,7 +53,7 @@ export class PartnerController {
 
     @Patch('profile')
     async updateProfile(
-        @Body() body: UpdateProfileDto,
+        @Body() body: UpdatePartnerProfileDto,
 
         @CurrentUser() user: User
     ) {
