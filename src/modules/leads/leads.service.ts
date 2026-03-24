@@ -667,9 +667,13 @@ export class LeadsService {
             lead.nextActionDate = sixtyMinsLater.toISOString();
         };
 
+        // Apply explicit status from form FIRST — so auto-advance below can still override 'new'
+        if (dto.status !== undefined) lead.status = dto.status as LeadStatus;
+
         if (dto.call1 !== undefined) {
             lead.call1 = dto.call1;
-            // Auto-advance status from 'new' → 'contacted' on first call
+            // Auto-advance status from 'new' → 'contacted' on first disposition, regardless of
+            // what the form sent as status (form always echoes back the current status value)
             if (lead.status === LeadStatus.NEW) {
                 lead.status = LeadStatus.CONTACTED;
             }
@@ -687,7 +691,6 @@ export class LeadsService {
         if (dto.appointmentBooked !== undefined) lead.appointmentBooked = dto.appointmentBooked;
         if (dto.bookedDate !== undefined) lead.bookedDate = dto.bookedDate;
         if ((dto as any).bookedTimeSlot !== undefined) lead.bookedTimeSlot = (dto as any).bookedTimeSlot;
-        if (dto.status !== undefined) lead.status = dto.status as LeadStatus;
         if (dto.preferredExperienceCenter !== undefined) lead.preferredExperienceCenter = dto.preferredExperienceCenter;
         if (dto.customerProductInterest !== undefined) lead.customerProductInterest = dto.customerProductInterest;
         if ((dto as any).consultationType !== undefined) lead.consultationType = (dto as any).consultationType;
