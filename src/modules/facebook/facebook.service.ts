@@ -357,10 +357,23 @@ export class FacebookService {
         const fullNameFallback = get('name', 'FULL_NAME', 'full_name', 'NAME') || '';
         const name = [firstName, lastName].filter(Boolean).join(' ') || fullNameFallback || 'Unknown';
 
-
         if (!phone) {
             this.logger.warn('[LEAD-PUSH] ❌ No phone number found — aborting');
             return { success: false, error: 'Phone number is required' };
+        }
+
+        // ── Look up form config to get admin-configured leadCategory ─────
+        // If fbFormId matches a stored FbLeadForm, use its manually set category.
+        // This ensures direct-push leads respect the same config as webhook/CSV leads.
+        let configuredLeadCategory: string | undefined;
+        if (fbFormId) {
+            const form = await this.fbLeadFormRepo.findOne({ where: { fbFormId } });
+            if (form?.leadCategory) {
+                configuredLeadCategory = form.leadCategory;
+                this.logger.log(`[LEAD-PUSH] Form config found for form_id=${fbFormId} → leadCategory="${configuredLeadCategory}"`);
+            } else {
+                this.logger.log(`[LEAD-PUSH] No form config / leadCategory for form_id=${fbFormId} — will derive from keywords`);
+            }
         }
 
         this.logger.log(`[LEAD-PUSH] Mapped → name="${name}" phone="${phone}" city="${city}" form="${formName}" leadgenId="${fbLeadgenId}" utm_source="${utmSource}"`);
@@ -374,6 +387,7 @@ export class FacebookService {
                 pincode: zip,
                 source: 'facebook-direct',
                 pageType: formName || undefined,
+                leadCategory: configuredLeadCategory || undefined,  // admin-set wins; undefined → keyword fallback in create()
                 notes: email ? `Email: ${email}` : undefined,
                 specificDetails: {
                     ...(fbLeadgenId  ? { fb_leadgen_id:  fbLeadgenId  } : {}),
@@ -387,7 +401,7 @@ export class FacebookService {
                 },
             } as any);
 
-            this.logger.log(`[LEAD-PUSH] ✅ Lead created — id=${lead?.id} fb_leadgen_id=${fbLeadgenId || '(none)'}`);
+            this.logger.log(`[LEAD-PUSH] ✅ Lead created — id=${lead?.id} fb_leadgen_id=${fbLeadgenId || '(none)'} leadCategory="${configuredLeadCategory ?? 'derived'}"`);
             return { success: true, leadId: lead?.id };
         } catch (err: any) {
             this.logger.error(`[LEAD-PUSH] ❌ Lead creation failed: ${err.message}`);
