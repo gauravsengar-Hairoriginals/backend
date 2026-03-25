@@ -236,6 +236,12 @@ export class AdminController {
         return this.adminService.toggleExperienceCenterStatus(id, body.isActive);
     }
 
+    @Post('experience-centers/:id/test-dingg')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async testDinggConnection(@Param('id') id: string) {
+        return this.adminService.testDinggConnection(id);
+    }
+
     // ── City Regions Management ───────────────────────────────────────
 
     @Get('city-regions')

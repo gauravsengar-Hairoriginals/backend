@@ -31,6 +31,31 @@ export class ExperienceCenter {
     @Column({ name: 'is_active', default: true })
     isActive: boolean;
 
+    // ── DINGG Integration Credentials (per-EC) ────────────────────────────
+    // Obtained from DINGG tech-partner team. Each EC has its own credentials
+    // corresponding to its vendor_location_uuid in DINGG's system.
+
+    @Column({ name: 'dingg_access_code', nullable: true, select: false })
+    dinggAccessCode: string;  // tech-partner access code
+
+    @Column({ name: 'dingg_api_key', nullable: true, select: false })
+    dinggApiKey: string;      // tech-partner API key
+
+    @Column({ name: 'dingg_vendor_location_uuid', nullable: true })
+    dinggVendorLocationUuid: string; // UUID from GET /tech-partner/locations
+
+    // Cached auth token — refreshed automatically by DinggService, stored here
+    // so the token survives server restarts and is shared across instances.
+    @Column({ name: 'dingg_token', type: 'text', nullable: true, select: false })
+    dinggToken: string | null;
+
+    @Column({ name: 'dingg_token_expires_at', type: 'timestamp', nullable: true })
+    dinggTokenExpiresAt: Date | null;
+
+    // Whether DINGG integration is enabled for this EC
+    @Column({ name: 'dingg_enabled', default: false })
+    dinggEnabled: boolean;
+
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
 

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -331,13 +331,38 @@ export class AdminService implements OnModuleInit {
         return qb.orderBy('ec.createdAt', 'DESC').getMany();
     }
 
-    async updateExperienceCenter(id: string, dto: Partial<ExperienceCenter>): Promise<ExperienceCenter> {
-        const ec = await this.ecRepository.findOne({ where: { id } });
-        if (!ec) {
-            throw new NotFoundException('Experience Center not found');
+    async updateExperienceCenter(id: string, dto: Partial<ExperienceCenter> & {
+        dinggAccessCode?: string;
+        dinggApiKey?: string;
+    }): Promise<ExperienceCenter> {
+        // Reload with secrets (select:false columns not included by default)
+        const ec = await this.ecRepository
+            .createQueryBuilder('ec')
+            .addSelect(['ec.dinggAccessCode', 'ec.dinggApiKey', 'ec.dinggToken'])
+            .where('ec.id = :id', { id })
+            .getOne();
+        if (!ec) throw new NotFoundException('Experience Center not found');
+
+        // Apply all standard fields
+        const { dinggAccessCode, dinggApiKey, ...rest } = dto as any;
+        Object.assign(ec, rest);
+
+        // Apply credential fields explicitly (they are select:false, Object.assign misses them)
+        if (dinggAccessCode !== undefined) ec.dinggAccessCode = dinggAccessCode;
+        if (dinggApiKey     !== undefined) ec.dinggApiKey     = dinggApiKey;
+
+        // If credentials change, clear cached token so it's refreshed on next use
+        if (dinggAccessCode !== undefined || dinggApiKey !== undefined) {
+            ec.dinggToken = null;
+            ec.dinggTokenExpiresAt = null;
         }
-        Object.assign(ec, dto);
-        return this.ecRepository.save(ec);
+
+        const saved = await this.ecRepository.save(ec);
+        // Return without exposing secrets
+        delete (saved as any).dinggAccessCode;
+        delete (saved as any).dinggApiKey;
+        delete (saved as any).dinggToken;
+        return saved;
     }
 
     async toggleExperienceCenterStatus(id: string, isActive: boolean): Promise<ExperienceCenter> {
@@ -347,6 +372,45 @@ export class AdminService implements OnModuleInit {
         }
         ec.isActive = isActive;
         return this.ecRepository.save(ec);
+    }
+
+    /** Test DINGG connection for an EC — calls generate-token and returns success/fail */
+    async testDinggConnection(id: string): Promise<{ success: boolean; message: string }> {
+        const ec = await this.ecRepository
+            .createQueryBuilder('ec')
+            .addSelect(['ec.dinggAccessCode', 'ec.dinggApiKey'])
+            .where('ec.id = :id', { id })
+            .getOne();
+        if (!ec) throw new NotFoundException('Experience Center not found');
+        if (!ec.dinggAccessCode || !ec.dinggApiKey) {
+            throw new BadRequestException('DINGG credentials not configured for this EC');
+        }
+
+        const baseUrl = process.env.DINGG_BASE_URL ?? 'https://api.dingg.app';
+        try {
+            const res = await fetch(`${baseUrl}/tech-partner/generate-token`, {
+                method: 'POST',
+                headers: {
+                    access_code: ec.dinggAccessCode,
+                    api_key:     ec.dinggApiKey,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const json: any = await res.json();
+            if (!res.ok || !json?.token) {
+                return { success: false, message: `DINGG returned: ${JSON.stringify(json)}` };
+            }
+            // Cache the working token
+            const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000); // 23 h
+            await this.ecRepository.update(id, {
+                dinggToken: json.token,
+                dinggTokenExpiresAt: expiresAt,
+                dinggEnabled: true,
+            } as any);
+            return { success: true, message: `Token obtained and cached. Expires: ${expiresAt.toISOString()}` };
+        } catch (err: any) {
+            return { success: false, message: `Network error: ${err.message}` };
+        }
     }
 
     // ── City Region Management ────────────────────────────────────────────
