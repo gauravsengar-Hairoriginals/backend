@@ -10,7 +10,11 @@ import {
     UseGuards,
     ParseUUIDPipe,
     ForbiddenException,
+    UseInterceptors,
+    UploadedFile,
+    BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { LeadsService } from './leads.service';
 import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, BulkAssignLeadDto } from './dto/create-lead.dto';
@@ -71,6 +75,7 @@ export class LeadsController {
         @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
         @Query('deduplicateByPhone') deduplicateByPhone?: string,
         @Query('isHighPriority') isHighPriority?: string,
+        @Query('isUnassigned') isUnassigned?: string,
         @CurrentUser() user?: User,
     ) {
         return this.leadsService.findAll({
@@ -80,6 +85,7 @@ export class LeadsController {
             name, phone, city, source, campaign, assignedTo, leadCategory, tab,
             deduplicateByPhone: deduplicateByPhone === 'true',
             isHighPriority: isHighPriority === 'true' ? true : undefined,
+            isUnassigned: isUnassigned === 'true' ? true : undefined,
         }, user);
     }
 
@@ -141,6 +147,20 @@ export class LeadsController {
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
     bulkAssign(@Body() dto: BulkAssignLeadDto) {
         return this.leadsService.bulkAssign(dto.leadIds, dto.callerId);
+    }
+
+    // ── Admin: import LeadSquared Excel dump ──────────────────────────────────
+    @Post('import/leadsquared')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @UseInterceptors(FileInterceptor('file'))
+    importLeadSquared(
+        @UploadedFile() file: Express.Multer.File,
+        @Body('targetStatus') targetStatus: string,
+    ) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        if (!targetStatus) throw new BadRequestException('targetStatus is required');
+        return this.leadsService.importFromLeadSquared(file.buffer, targetStatus);
     }
 
     // ── Admin: update a lead record's calling/tracking fields ─────────────────

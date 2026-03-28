@@ -40,6 +40,7 @@ export interface LeadsQuery {
     deduplicateByPhone?: boolean;
     // Priority filter
     isHighPriority?: boolean;
+    isUnassigned?: boolean;
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -484,6 +485,9 @@ export class LeadsService {
         }
         if (query?.isHighPriority === true) {
             qb.andWhere('lr.is_high_priority = true');
+        }
+        if (query?.isUnassigned === true) {
+            qb.andWhere('lr.assigned_to_id IS NULL');
         }
 
         // Tab logic
@@ -1360,5 +1364,160 @@ export class LeadsService {
 
         this.logger.log(`[BULK-ASSIGN] Done: ${assigned} assigned, ${skipped} skipped`);
         return { assigned, skipped, details };
+    }
+
+    // ── LeadSquared Excel Import ──────────────────────────────────────────────
+    async importFromLeadSquared(
+        fileBuffer: Buffer,
+        targetStatus: string,
+    ): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const XLSX = require('xlsx');
+
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+
+        // Pre-load all users for agent lookup (email & phone)
+        const allUsers = await this.userRepo.find();
+        const userByEmail = new Map<string, User>();
+        const userByPhone = new Map<string, User>();
+        for (const u of allUsers) {
+            if (u.email) userByEmail.set(u.email.toLowerCase().trim(), u);
+            if (u.phone) userByPhone.set(normalizePhone(u.phone), u);
+        }
+
+        for (let i = 0; i < rows.length; i++) {
+            const rawRow = rows[i];
+            const rowNum = i + 2; // 1-indexed + header
+            
+            // Fix Excel/CSV header issues: totally strip spaces, casing, and weird chars
+            const row: Record<string, any> = {};
+            for (const key of Object.keys(rawRow)) {
+                const cleanKey = key.toLowerCase()
+                                    .replace(/[\s_]+/g, '')
+                                    .replace(/\r?\n|\r/g, '')
+                                    .replace(/[\u200B-\u200D\uFEFF]/g, '');
+                row[cleanKey] = rawRow[key];
+            }
+
+            try {
+                // ── 1. Phone normalization ────────────────────────────────────
+                const rawPhone = String(row['customermobilenumber'] ?? row['mobile'] ?? '').trim();
+                if (!rawPhone) {
+                    skipped++;
+                    errors.push(`Row ${rowNum}: skipped — no phone number`);
+                    continue;
+                }
+                const phone = normalizePhone(rawPhone);
+
+                // ── 2. Name ───────────────────────────────────────────────────
+                const firstName = String(row['customerfirstname'] ?? row['firstname'] ?? '').trim();
+                const lastName = String(row['customerlastname'] ?? row['lastname'] ?? '').trim();
+                const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+
+                // ── 3. Source ─────────────────────────────────────────────────
+                const source = String(row['leadsource'] ?? row['source'] ?? 'LeadSquared').trim();
+
+                // ── 4. Agent lookup ───────────────────────────────────────────
+                let agentUser: User | undefined;
+                const agentPhone = String(
+                    row['agentmobilenumber'] ?? 
+                    row['agentnumber'] ?? 
+                    row['agentphone'] ?? 
+                    row['agent'] ?? 
+                    row['ownerphone'] ?? 
+                    row['ownermobilenumber'] ?? 
+                    row['owner'] ?? 
+                    ''
+                ).trim();
+
+                this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: Raw Agent Phone from CSV = '${agentPhone}'`);
+
+                if (agentPhone) {
+                    const normPhone = normalizePhone(agentPhone);
+                    this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: Searching DB for normalized phone = '${normPhone}'`);
+                    agentUser = userByPhone.get(normPhone);
+                    this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: Search result = ${agentUser ? `SUCCESS (User ID: ${agentUser.id}, Name: ${agentUser.name})` : 'FAILED (Not Found)'}`);
+                }
+
+                // ✨ Diagnostic Error for the UI: ✨
+                if (!agentUser) {
+                    if (!agentPhone) {
+                        errors.push(`Row ${rowNum}: No Agent Phone found in columns (or column missing)`);
+                    } else {
+                        errors.push(`Row ${rowNum}: Agent not found in system for Phone: '${agentPhone}' (normalized: ${normalizePhone(agentPhone)})`);
+                    }
+                }
+
+                // ── 5. Customer find-or-create ────────────────────────────────
+                let customer = await this.customerRepo.findOne({ where: { phone } });
+                if (!customer) {
+                    customer = this.customerRepo.create({ name: fullName, phone });
+                    customer = await this.customerRepo.save(customer);
+                } else if (customer.name === 'Unknown' || !customer.name) {
+                    customer.name = fullName;
+                    customer = await this.customerRepo.save(customer);
+                } else {
+                    // Update name if we have a better value
+                    customer.name = fullName;
+                    customer = await this.customerRepo.save(customer);
+                }
+
+                // ── 6. Category Mapping ───────────────────────────────────────
+                const rawCategory = String(row['category'] ?? '').trim().toLowerCase();
+                let leadCategory: string | undefined;
+                if (rawCategory === 'home trial' || rawCategory === 'ht') leadCategory = 'HT';
+                else if (rawCategory === 'popins' || rawCategory === 'popin') leadCategory = 'POPIN';
+                else if (rawCategory === 'website') leadCategory = 'WEBSITE';
+                else if (rawCategory === 'ec' || rawCategory === 'experience center') leadCategory = 'EC';
+
+                // ── 7. Lead find-or-create ────────────────────────────────────
+                const existingLead = await this.leadRecordRepo.findOne({
+                    where: { customerId: customer.id },
+                    order: { createdAt: 'DESC' },
+                });
+
+                if (existingLead) {
+                    // Update existing lead
+                    existingLead.status = targetStatus as LeadStatus;
+                    if (agentUser) {
+                        existingLead.assignedToId = agentUser.id;
+                        existingLead.assignedToName = agentUser.name;
+                    }
+                    existingLead.source = source;
+                    if (leadCategory) existingLead.leadCategory = leadCategory;
+                    await this.leadRecordRepo.save(existingLead);
+                    updated++;
+                    this.logger.log(`[LS-IMPORT] Updated lead ${existingLead.id} for phone ${phone}`);
+                } else {
+                    // Create new lead
+                    const isRevisit = false; // new customer, not a revisit
+                    const lead = this.leadRecordRepo.create({
+                        customerId: customer.id,
+                        status: targetStatus as LeadStatus,
+                        source,
+                        isRevisit,
+                        leadCategory,
+                        assignedToId: agentUser?.id ?? (null as any),
+                        assignedToName: agentUser?.name ?? '',
+                    });
+                    await this.leadRecordRepo.save(lead);
+                    created++;
+                    this.logger.log(`[LS-IMPORT] Created lead for phone ${phone}`);
+                }
+            } catch (err: any) {
+                errors.push(`Row ${rowNum}: ${err?.message ?? 'Unknown error'}`);
+                this.logger.error(`[LS-IMPORT] Row ${rowNum} failed: ${err?.message}`);
+            }
+        }
+
+        this.logger.log(`[LS-IMPORT] Done — created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors.length}`);
+        return { created, updated, skipped, errors };
     }
 }
