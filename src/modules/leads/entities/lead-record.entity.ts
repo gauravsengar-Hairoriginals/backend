@@ -101,6 +101,10 @@ export class LeadRecord {
     @Column({ type: 'varchar', default: LeadStatus.NEW })
     status: LeadStatus;
 
+    @Index()
+    @Column({ name: 'is_high_priority', type: 'boolean', default: false })
+    isHighPriority: boolean;
+
     @Column({ name: 'converted_at', type: 'timestamp', nullable: true })
     convertedAt: Date;
 

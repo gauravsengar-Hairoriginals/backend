@@ -233,16 +233,11 @@ export class CallLogsService {
                 this.logger.log(`[INBOUND] Step 3: ✅ Created customer id=${customer.id} phone=${customer.phone}`);
             } catch (err: any) {
                 this.logger.error(`[INBOUND] Step 3: ❌ CustomersService.create() failed: ${err.message}`);
-                this.logger.error(`[INBOUND] Step 3: Error type: ${err.constructor?.name}, status: ${err.status}`);
 
                 // Try to recover — maybe customer was created by another concurrent request
-                this.logger.log(`[INBOUND] Step 3: Attempting recovery — searching DB again…`);
                 customer = await this.customerRepo.findOne({ where: { phone: normalizedPhone } });
+                if (!customer) customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
                 if (!customer) {
-                    customer = await this.customerRepo.findOne({ where: { phone: callerNumber } });
-                }
-                if (!customer) {
-                    // Last resort: use LIKE search
                     const digits = callerNumber.replace(/\D/g, '');
                     const last10 = digits.slice(-10);
                     this.logger.log(`[INBOUND] Step 3: Last resort — LIKE search for %${last10}`);
@@ -250,10 +245,8 @@ export class CallLogsService {
                         .createQueryBuilder('c')
                         .where('c.phone LIKE :phone', { phone: `%${last10}` })
                         .getOne();
-                    this.logger.log(`[INBOUND] Step 3: LIKE search → ${customer ? `FOUND id=${customer.id} phone=${customer.phone}` : 'NOT FOUND'}`);
                 }
                 if (!customer) {
-                    this.logger.error(`[INBOUND] Step 3: ❌ FATAL — Cannot find or create customer for phone ${callerNumber}. Aborting.`);
                     throw new Error(`Cannot find or create customer for phone ${callerNumber}: ${err.message}`);
                 }
                 this.logger.log(`[INBOUND] Step 3: ✅ Recovery successful — found customer id=${customer.id}`);
@@ -267,25 +260,49 @@ export class CallLogsService {
             }
         }
 
-        // 2. Check for prior lead records (isRevisit flag)
-        const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
-        this.logger.log(`[INBOUND] Step 4: Prior lead count for customer ${customer.id}: ${priorCount} (isRevisit=${priorCount > 0})`);
+        // ── 2. Find existing OPEN lead — reuse it to avoid duplicates ───────────
+        // "Open" = any status that is not a terminal/closed status.
+        const CLOSED_STATUSES = [
+            'dropped',
+            'converted:Marked to EC',
+            'converted:Marked to HT',
+            'converted:Marked to VC',
+        ];
 
-        // 3. Create the lead record
-        this.logger.log(`[INBOUND] Step 5: Creating LeadRecord — customerId=${customer.id}, source=Inbound IVR`);
-        const lead = await this.leadRepo.save(
-            this.leadRepo.create({
-                customerId: customer.id,
-                source: 'Inbound IVR',
-                status: LeadStatus.NEW,
-                leadCategory: 'WEBSITE',
-                isRevisit: priorCount > 0,
-            }),
-        );
-        this.logger.log(`[INBOUND] Step 5: ✅ Created lead id=${lead.id}`);
+        let lead = await this.leadRepo
+            .createQueryBuilder('lr')
+            .where('lr.customer_id = :cid', { cid: customer.id })
+            .andWhere('lr.status NOT IN (:...closed)', { closed: CLOSED_STATUSES })
+            .orderBy('lr.created_at', 'DESC')
+            .getOne();
 
-        // 4. Create the call log with callback data already filled in
-        this.logger.log(`[INBOUND] Step 6: Creating CallLog — leadId=${lead.id}`);
+        if (lead) {
+            // ── Reuse existing open lead ─────────────────────────────────────────
+            this.logger.log(`[INBOUND] Step 4: Found existing open lead id=${lead.id} status=${lead.status} — reusing instead of creating duplicate`);
+            // Mark as revisit if not already flagged
+            if (!lead.isRevisit) {
+                lead.isRevisit = true;
+                await this.leadRepo.save(lead);
+                this.logger.log(`[INBOUND] Step 4: Marked lead ${lead.id} as isRevisit=true`);
+            }
+        } else {
+            // ── No open lead — create a fresh one ───────────────────────────────
+            const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
+            this.logger.log(`[INBOUND] Step 4: No open lead found. Prior count=${priorCount} → creating new Inbound IVR lead`);
+            lead = await this.leadRepo.save(
+                this.leadRepo.create({
+                    customerId: customer.id,
+                    source: 'Inbound IVR',
+                    status: LeadStatus.NEW,
+                    leadCategory: 'WEBSITE',
+                    isRevisit: priorCount > 0,
+                }),
+            );
+            this.logger.log(`[INBOUND] Step 4: ✅ Created new lead id=${lead.id} isRevisit=${lead.isRevisit}`);
+        }
+
+        // ── 3. Create the call log with callback data filled in ─────────────────
+        this.logger.log(`[INBOUND] Step 5: Creating CallLog — leadId=${lead.id}`);
         const callAction = params['call_action'] ?? params['callAction'] ?? '';
         const parseDate = (v?: string): Date | undefined => {
             if (!v || v.trim() === '' || v.startsWith('00:00:00') || v.startsWith('0NaN')) return undefined;
@@ -317,7 +334,7 @@ export class CallLogsService {
                 callConferenceUid: params['call_conference_uid'] ?? params['callConferenceUid'],
             }),
         );
-        this.logger.log(`[INBOUND] Step 6: ✅ Created call log id=${callLog.id}, status=${callLog.status}`);
+        this.logger.log(`[INBOUND] Step 5: ✅ Created call log id=${callLog.id} status=${callLog.status}`);
         this.logger.log(`[INBOUND] ✅ COMPLETE — Lead=${lead.id} Customer=${customer.id} CallLog=${callLog.id}`);
 
         // Real-time assignment — delegate to central LeadsService engine

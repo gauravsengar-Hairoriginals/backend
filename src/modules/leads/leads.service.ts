@@ -38,6 +38,8 @@ export interface LeadsQuery {
     tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped';
     // Deduplication: show only the latest lead per customer phone
     deduplicateByPhone?: boolean;
+    // Priority filter
+    isHighPriority?: boolean;
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -54,6 +56,7 @@ const TRACKED_LEAD_FIELDS: Array<{ dtoKey: keyof UpdateLeadRecordDto; label: str
     { dtoKey: 'status', label: 'Status', getter: l => l.status },
     { dtoKey: 'preferredExperienceCenter', label: 'Experience Center', getter: l => l.preferredExperienceCenter },
     { dtoKey: 'nextActionDate', label: 'Next Action Date', getter: l => l.nextActionDate },
+    { dtoKey: 'isHighPriority', label: 'High Priority', getter: l => l.isHighPriority },
 ];
 
 function stringify(val: any): string {
@@ -479,6 +482,9 @@ export class LeadsService {
         if (query?.leadCategory) {
             qb.andWhere('lr.lead_category = :leadCategory', { leadCategory: query.leadCategory });
         }
+        if (query?.isHighPriority === true) {
+            qb.andWhere('lr.is_high_priority = true');
+        }
 
         // Tab logic
         if (tab) {
@@ -695,6 +701,7 @@ export class LeadsService {
         if (dto.customerProductInterest !== undefined) lead.customerProductInterest = dto.customerProductInterest;
         if ((dto as any).consultationType !== undefined) lead.consultationType = (dto as any).consultationType;
         if (dto.nextActionDate) lead.nextActionDate = dto.nextActionDate; // only override if explicitly set (non-empty)
+        if (dto.isHighPriority !== undefined) lead.isHighPriority = dto.isHighPriority;
 
         const saved = await this.leadRecordRepo.save(lead);
 

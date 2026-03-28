@@ -18,6 +18,11 @@ export enum OrderSyncStatus {
     CANCELLED = 'cancelled',
 }
 
+export enum OrderSource {
+    SHOPIFY = 'shopify',
+    DINGG   = 'dingg',
+}
+
 export enum FinancialStatus {
     PENDING = 'pending',
     AUTHORIZED = 'authorized',
@@ -66,6 +71,16 @@ export interface DiscountApplication {
 export class Order {
     @PrimaryGeneratedColumn('uuid')
     id: string;
+
+    // Source of order: shopify (e-commerce) or dingg (EC appointment)
+    @Column({
+        name: 'order_source',
+        type: 'enum',
+        enum: OrderSource,
+        default: OrderSource.SHOPIFY,
+    })
+    @Index()
+    orderSource: OrderSource;
 
     // Shopify Reference
     @Column({ name: 'shopify_id', nullable: true, unique: true })
@@ -189,6 +204,17 @@ export class Order {
     // Source tracking
     @Column({ nullable: true })
     source: string;
+
+    // DINGG Appointment / Billing (only set when orderSource = 'dingg')
+    @Column({ name: 'dingg_booking_uuid',   nullable: true }) dinggBookingUuid:   string;
+    @Column({ name: 'dingg_invoice_uuid',   nullable: true }) dinggInvoiceUuid:   string;
+    @Column({ name: 'dingg_location_uuid',  nullable: true }) dinggLocationUuid:  string;
+    @Column({ name: 'dingg_booking_date',   type: 'date',  nullable: true }) dinggBookingDate:   string;
+    @Column({ name: 'dingg_booking_status', nullable: true }) dinggBookingStatus: string;
+    // booking status lifecycle: tentative → confirmed → completed | cancelled
+
+    // Lead that triggered this EC booking (links order back to lead pipeline)
+    @Column({ name: 'lead_id', nullable: true }) leadId: string;
 
     // Metadata
     @Column({ type: 'jsonb', nullable: true })

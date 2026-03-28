@@ -237,6 +237,9 @@ export class UpdateLeadRecordDto {
     @IsIn(['new', 'contacted', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC', 'dropped'])
     @IsOptional()
     status?: string;
+
+    // Priority
+    @IsBoolean() @IsOptional() isHighPriority?: boolean;
 }
 
 // ── Assign ────────────────────────────────────────────────────────────────────

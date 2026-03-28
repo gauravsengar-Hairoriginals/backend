@@ -70,6 +70,7 @@ export class LeadsController {
         @Query('leadCategory') leadCategory?: string,
         @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
         @Query('deduplicateByPhone') deduplicateByPhone?: string,
+        @Query('isHighPriority') isHighPriority?: string,
         @CurrentUser() user?: User,
     ) {
         return this.leadsService.findAll({
@@ -78,6 +79,7 @@ export class LeadsController {
             search, status, assignedToId, fromDate, toDate,
             name, phone, city, source, campaign, assignedTo, leadCategory, tab,
             deduplicateByPhone: deduplicateByPhone === 'true',
+            isHighPriority: isHighPriority === 'true' ? true : undefined,
         }, user);
     }
 

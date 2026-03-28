@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Config
 import {
@@ -33,6 +34,7 @@ import { CallLogsModule } from './modules/call-logs/call-logs.module';
 import { PopinModule } from './modules/popin/popin.module';
 import { FacebookModule } from './modules/facebook/facebook.module';
 import { ShopifyModule } from './modules/shopify/shopify.module';
+import { DinggModule } from './modules/dingg/dingg.module';
 
 @Module({
   imports: [
@@ -74,6 +76,9 @@ import { ShopifyModule } from './modules/shopify/shopify.module';
       inject: [ConfigService],
     }),
 
+    // Task Scheduling (DINGG daily sync cron + shift auto-end)
+    ScheduleModule.forRoot(),
+
     // Feature Modules
     AuthModule,
     UsersModule,
@@ -93,6 +98,7 @@ import { ShopifyModule } from './modules/shopify/shopify.module';
     PopinModule,
     FacebookModule,
     ShopifyModule,
+    DinggModule,
   ],
 })
 export class AppModule { }

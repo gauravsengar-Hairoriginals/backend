@@ -47,6 +47,23 @@ export class Customer {
     @Column({ name: 'quickreply_id', nullable: true })
     quickreplyId: string;
 
+    // DINGG (Experience Centre POS)
+    @Column({ name: 'dingg_customer_uuid', nullable: true })
+    @Index()
+    dinggCustomerUuid: string;
+
+    @Column({ name: 'dingg_transacted_at', type: 'timestamp', nullable: true })
+    dinggTransactedAt: Date;
+
+    @Column({ name: 'dingg_last_transaction_at', type: 'timestamp', nullable: true })
+    dinggLastTransactionAt: Date;
+
+    @Column({ name: 'dingg_total_spend', type: 'decimal', precision: 10, scale: 2, default: 0 })
+    dinggTotalSpend: number;
+
+    @Column({ name: 'dingg_visit_count', type: 'int', default: 0 })
+    dinggVisitCount: number;
+
     // Basic Info
     @Column()
     @Index()
