@@ -374,6 +374,62 @@ export class AdminService implements OnModuleInit {
         return this.ecRepository.save(ec);
     }
 
+    // ── EC Stylist Management ─────────────────────────────────────────────
+
+    async getStylistsInEC(ecId: string): Promise<User[]> {
+        const ec = await this.ecRepository.findOne({ where: { id: ecId } });
+        if (!ec) throw new NotFoundException('Experience Center not found');
+
+        return this.userRepository.find({
+            where: { ecId, role: UserRole.STYLIST },
+            select: ['id', 'name', 'phone', 'email', 'isActive', 'level'],
+        });
+    }
+
+    async addStylistToECByPhone(ecId: string, phone: string, name?: string): Promise<User[]> {
+        const ec = await this.ecRepository.findOne({ where: { id: ecId } });
+        if (!ec) throw new NotFoundException('Experience Center not found');
+
+        const normalized = normalizePhone(phone);
+        let stylist = await this.userRepository.findOne({ where: { phone: normalized } });
+
+        if (!stylist) {
+            // Create new stylist user
+            const hashedPassword = await bcrypt.hash('Welcome@123', 12);
+            stylist = this.userRepository.create({
+                name: name || 'Stylist',
+                phone: normalized,
+                role: UserRole.STYLIST,
+                passwordHash: hashedPassword,
+                isActive: true,
+                isPhoneVerified: true,
+            });
+            stylist = await this.userRepository.save(stylist);
+        } else if (stylist.role !== UserRole.STYLIST) {
+            throw new BadRequestException(`User with phone ${phone} has role '${stylist.role}' and cannot be added as a stylist`);
+        }
+
+        stylist.ecId = ecId;
+        await this.userRepository.save(stylist);
+
+        return this.getStylistsInEC(ecId);
+    }
+
+    async removeStylistFromEC(ecId: string, stylistId: string): Promise<User[]> {
+        const stylist = await this.userRepository.findOne({
+            where: { id: stylistId, ecId },
+        });
+
+        if (!stylist) {
+            throw new NotFoundException(`Stylist with ID ${stylistId} not found in this Experience Center`);
+        }
+
+        stylist.ecId = null as any;
+        await this.userRepository.save(stylist);
+
+        return this.getStylistsInEC(ecId);
+    }
+
     /** Test DINGG connection for an EC — calls generate-token and returns success/fail */
     async testDinggConnection(id: string): Promise<{ success: boolean; message: string }> {
         const ec = await this.ecRepository

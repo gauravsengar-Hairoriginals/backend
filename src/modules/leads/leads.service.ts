@@ -17,6 +17,7 @@ import { CallLog } from '../call-logs/entities/call-log.entity';
 import { CreateLeadDto, UpdateLeadRecordDto, AssignLeadDto, CreateLeadProductDto } from './dto/create-lead.dto';
 import { normalizePhone } from '../../common/utils/phone.util';
 import { LeadCategorisationService } from '../../common/services/lead-categorisation.service';
+import { ChannelierService } from '../channelier/channelier.service';
 
 export interface LeadsQuery {
     page?: number;
@@ -114,6 +115,7 @@ export class LeadsService {
         private readonly callLogRepo: Repository<CallLog>,
         private readonly dataSource: DataSource,
         private readonly categorisation: LeadCategorisationService,
+        private readonly channelierService: ChannelierService,
     ) { }
 
     // ── Create ────────────────────────────────────────────────────────────
@@ -723,6 +725,54 @@ export class LeadsService {
         // Save all history diffs (non-blocking)
         if (historyEntries.length > 0) {
             await this.leadHistoryRepo.save(historyEntries.map(e => this.leadHistoryRepo.create(e)));
+        }
+
+        // ── Channelier Sync logic ───────────────────────────────────────
+        if (dto.status === 'converted:Marked to HT' && dto.htCity && dto.htAgentId && dto.bookedDate && dto.bookedTimeSlot) {
+            try {
+                const agent = await this.userRepo.findOne({ where: { id: dto.htAgentId } });
+                const customer = await this.customerRepo.findOne({ where: { id: lead.customerId } });
+                
+                if (agent?.channelierEmployeeId && customer) {
+                    this.logger.log(`Syncing HT assignment to Channelier for lead ${id}`);
+                    
+                    // 1. Create Lead in CRM
+                    const cLeadId = await this.channelierService.createLead({
+                        customerName: customer.name || 'Unknown',
+                        customerPhone: customer.phone,
+                        city: dto.htCity,
+                        address: customer.addressLine1 || dto.address || '',
+                        contactPersonFirstName: customer.firstName || customer.name || 'Unknown',
+                        state: 1, // Defaulting as required
+                        cityId: 1, // Defaulting as required
+                    });
+
+                    // 2. Create Task linked to Lead & Agent
+                    if (cLeadId) {
+                        let scheduledTime: Date;
+                        try {
+                            const datePart = dto.bookedDate.split('T')[0];
+                            scheduledTime = new Date(`${datePart} ${dto.bookedTimeSlot}`);
+                            if (isNaN(scheduledTime.getTime())) scheduledTime = new Date(dto.bookedDate);
+                        } catch {
+                            scheduledTime = new Date(dto.bookedDate);
+                        }
+
+                        await this.channelierService.createTask({
+                            channelierEmployeeId: agent.channelierEmployeeId,
+                            leadId: cLeadId,
+                            taskName: `Home Trial (${dto.consultationType || 'General'}): ${customer.name || 'Customer'}`,
+                            scheduledTime,
+                        });
+                        this.logger.log(`Successfully synced HT task for lead ${id} to Channelier ID ${cLeadId}`);
+                    }
+                } else {
+                    this.logger.warn(`Could not sync to Channelier: Agent missing Channelier ID or Customer not found. Lead id: ${id}`);
+                }
+            } catch (err: any) {
+                this.logger.error(`Channelier Sync Failed for lead ${id}: ${err.message}`, err.stack);
+                // We do NOT throw here because we don't want the HO form save to fail if Channelier is down
+            }
         }
 
         return this.leadRecordRepo.findOne({

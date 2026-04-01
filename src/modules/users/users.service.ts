@@ -139,7 +139,7 @@ export class UsersService {
     async listFieldAgents(): Promise<any[]> {
         const agents = await this.userRepository.find({
             where: { role: 'FIELD_AGENT' as any },
-            select: ['id', 'name', 'phone', 'email', 'isActive', 'createdAt'],
+            select: ['id', 'name', 'phone', 'email', 'isActive', 'createdAt', 'deployedCities', 'channelierEmployeeId'],
             order: { createdAt: 'DESC' }
         });
 
@@ -196,5 +196,19 @@ export class UsersService {
             relations: ['salon', 'salon.owner'],
             order: { assignedAt: 'DESC' }
         });
+    }
+
+    async updateAgentDetails(agentId: string, payload: { cities?: string[], channelierEmployeeId?: string }): Promise<User> {
+        const agent = await this.findById(agentId);
+        if (!agent) throw new NotFoundException('Agent not found');
+        
+        if (payload.cities !== undefined) {
+            agent.deployedCities = payload.cities.map(c => c.trim()).filter(Boolean);
+        }
+        if (payload.channelierEmployeeId !== undefined) {
+            agent.channelierEmployeeId = payload.channelierEmployeeId;
+        }
+
+        return this.userRepository.save(agent);
     }
 }

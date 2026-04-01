@@ -35,6 +35,7 @@ import { PopinModule } from './modules/popin/popin.module';
 import { FacebookModule } from './modules/facebook/facebook.module';
 import { ShopifyModule } from './modules/shopify/shopify.module';
 import { DinggModule } from './modules/dingg/dingg.module';
+import { ChannelierModule } from './modules/channelier/channelier.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { DinggModule } from './modules/dingg/dingg.module';
     FacebookModule,
     ShopifyModule,
     DinggModule,
+    ChannelierModule,
   ],
 })
 export class AppModule { }

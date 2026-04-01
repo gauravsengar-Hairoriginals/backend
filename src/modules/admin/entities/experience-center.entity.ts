@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum ECType {
     FULL = 'FULL',
@@ -55,6 +56,10 @@ export class ExperienceCenter {
     // Whether DINGG integration is enabled for this EC
     @Column({ name: 'dingg_enabled', default: false })
     dinggEnabled: boolean;
+
+    // Stylists assigned to this EC
+    @OneToMany(() => User, (user) => user.ec)
+    stylists: User[];
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

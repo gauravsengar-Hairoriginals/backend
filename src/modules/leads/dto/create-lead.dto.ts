@@ -218,6 +218,10 @@ export class UpdateLeadRecordDto {
     @IsDateString() @IsOptional() bookedDate?: string;
     @IsString() @IsOptional() bookedTimeSlot?: string;
 
+    // Home Trial Assignment
+    @IsString() @IsOptional() htCity?: string;
+    @IsString() @IsOptional() htAgentId?: string;
+
     // Preferences
     @IsString() @IsOptional() preferredExperienceCenter?: string;
     @IsString() @IsOptional() customerProductInterest?: string;

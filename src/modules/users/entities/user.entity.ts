@@ -11,6 +11,7 @@ import {
 import { UserRole } from '../enums/user-role.enum';
 import { Level } from '../../../common/enums/level.enum';
 import { Salon } from '../../salons/entities/salon.entity';
+import { ExperienceCenter } from '../../admin/entities/experience-center.entity';
 import { Referral } from '../../referrals/entities/referral.entity';
 import { CallerCategory } from '../enums/caller-category.enum';
 
@@ -65,6 +66,14 @@ export class User {
     @ManyToOne(() => Salon, (salon) => salon.stylists, { nullable: true })
     @JoinColumn({ name: 'salon_id' })
     salon: Salon;
+
+    // Experience Center relationship (for STYLIST role)
+    @Column({ name: 'ec_id', nullable: true })
+    ecId: string;
+
+    @ManyToOne(() => ExperienceCenter, (ec) => ec.stylists, { nullable: true })
+    @JoinColumn({ name: 'ec_id' })
+    ec: ExperienceCenter;
 
     @OneToMany(() => Referral, (referral) => referral.referrer)
     referrals: Referral[];
@@ -126,6 +135,19 @@ export class User {
         nullable: true,
     })
     callerRegions: string[];
+
+    /** Cities in which this field agent is deployed. Multiple cities allowed. */
+    @Column({
+        name: 'deployed_cities',
+        type: 'jsonb',
+        default: '[]',
+        nullable: true,
+    })
+    deployedCities: string[];
+
+    /** Channelier Employee ID for Field Agents (maps HO user to Channelier employee) */
+    @Column({ name: 'channelier_employee_id', nullable: true })
+    channelierEmployeeId: string;
 
     /** Whether the caller has manually started their shift */
     @Column({ name: 'is_on_shift', default: false })

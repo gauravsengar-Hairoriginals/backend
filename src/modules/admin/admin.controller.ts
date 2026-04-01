@@ -242,7 +242,36 @@ export class AdminController {
         return this.adminService.testDinggConnection(id);
     }
 
-    // ── City Regions Management ───────────────────────────────────────
+    // ── EC Stylist Management ──────────────────────────────────────────
+
+    /** List all stylists assigned to an EC */
+    @Get('experience-centers/:ecId/stylists')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async getStylistsInEC(@Param('ecId') ecId: string) {
+        return this.adminService.getStylistsInEC(ecId);
+    }
+
+    /** Add (or create) a stylist to an EC by phone number */
+    @Post('experience-centers/:ecId/stylists')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async addStylistToEC(
+        @Param('ecId') ecId: string,
+        @Body() body: { phone: string; name?: string },
+    ) {
+        return this.adminService.addStylistToECByPhone(ecId, body.phone, body.name);
+    }
+
+    /** Remove a stylist from an EC */
+    @Delete('experience-centers/:ecId/stylists/:stylistId')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async removeStylistFromEC(
+        @Param('ecId') ecId: string,
+        @Param('stylistId') stylistId: string,
+    ) {
+        return this.adminService.removeStylistFromEC(ecId, stylistId);
+    }
+
+
 
     @Get('city-regions')
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)

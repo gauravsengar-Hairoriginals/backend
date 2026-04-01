@@ -76,6 +76,16 @@ export class UsersController {
         return this.usersService.getAgentSalons(id);
     }
 
+    @Patch('field-force/:id/details')
+    @Roles(...ADMIN_ROLES, UserRole.HEAD_FIELD_FORCE, UserRole.FIELD_FORCE_TEAM_LEAD)
+    @ApiOperation({ summary: 'Update deployed cities or Channelier ID for a Field Agent' })
+    async updateAgentDetails(
+        @Param('id') id: string,
+        @Body() body: { cities?: string[], channelierEmployeeId?: string },
+    ) {
+        return this.usersService.updateAgentDetails(id, body);
+    }
+
     @Get(':id')
     @Roles(...ADMIN_ROLES)
     @ApiOperation({ summary: 'Get user by ID' })
