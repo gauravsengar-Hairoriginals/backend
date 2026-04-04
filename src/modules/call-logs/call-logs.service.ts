@@ -144,6 +144,7 @@ export class CallLogsService {
         if (!lead) {
             // No lead in our system at all — create one as 'Outbound Call'
             this.logger.log(`[OUTBOUND] No existing lead — creating Outbound Call lead for customer ${customer.id}`);
+            const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
                     customerId: customer.id,
@@ -151,6 +152,7 @@ export class CallLogsService {
                     status: LeadStatus.NEW,
                     leadCategory: 'WEBSITE',
                     isRevisit: false,
+                    ...(city && { city }),
                 }),
             );
             this.logger.log(`[OUTBOUND] Created lead id=${lead.id}`);
@@ -289,6 +291,7 @@ export class CallLogsService {
             // ── No open lead — create a fresh one ───────────────────────────────
             const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
             this.logger.log(`[INBOUND] Step 4: No open lead found. Prior count=${priorCount} → creating new Inbound IVR lead`);
+            const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
                     customerId: customer.id,
@@ -296,6 +299,7 @@ export class CallLogsService {
                     status: LeadStatus.NEW,
                     leadCategory: 'WEBSITE',
                     isRevisit: priorCount > 0,
+                    ...(city && { city }),
                 }),
             );
             this.logger.log(`[INBOUND] Step 4: ✅ Created new lead id=${lead.id} isRevisit=${lead.isRevisit}`);
