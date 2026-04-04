@@ -9,6 +9,7 @@ import { Repository, DataSource, IsNull, Not, In } from 'typeorm';
 import { Customer } from '../customers/entities/customer.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from '../users/enums/user-role.enum';
+import { CallerCategory } from '../users/enums/caller-category.enum';
 import { LeadRecord, LeadStatus } from './entities/lead-record.entity';
 import { LeadHistory } from './entities/lead-history.entity';
 import { LeadProduct } from './entities/lead-product.entity';
@@ -288,6 +289,16 @@ export class LeadsService {
                 if (priorCaller) {
                     assignedUserId = priorCaller.id;
                     this.logger.log(`[ASSIGN] ♻️ Sticky caller: re-using "${priorCaller.name}" from prior lead ${priorLead.id}`);
+                    
+                    if (priorCaller.callerCategory === CallerCategory.HT_CALLER && lead.leadCategory !== 'HT') {
+                        lead.leadCategory = 'HT';
+                        await this.leadRecordRepo.update(leadId, { leadCategory: 'HT' });
+                        this.logger.log(`[ASSIGN] 🔄 Updated lead category to HT due to sticky caller`);
+                    } else if (priorCaller.callerCategory === CallerCategory.EC_CALLER && lead.leadCategory !== 'EC') {
+                        lead.leadCategory = 'EC';
+                        await this.leadRecordRepo.update(leadId, { leadCategory: 'EC' });
+                        this.logger.log(`[ASSIGN] 🔄 Updated lead category to EC due to sticky caller`);
+                    }
                 } else {
                     this.logger.warn(`[ASSIGN] Prior caller ${priorLead.assignedToId} is inactive — falling through to normal assignment`);
                 }
