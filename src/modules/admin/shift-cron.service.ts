@@ -10,12 +10,11 @@ export class ShiftCronService {
 
     /**
      * Auto-logout all non-international lead callers at 18:00 IST = 12:30 UTC
-     * Cron: second minute hour day month weekday
+     * DISABLED: Shifts are now managed strictly manually by the callers themselves.
      */
-    @Cron('0 30 12 * * *', { timeZone: 'UTC' })
+    // @Cron('0 30 12 * * *', { timeZone: 'UTC' })
     async handleAutoLogout() {
-        this.logger.log('Auto-logout cron fired: ending shifts for non-international callers');
-        await this.adminService.autoEndShifts();
-        this.logger.log('Auto-logout complete');
+        this.logger.log('Auto-logout cron disabled - shifts are handled manually');
+        // await this.adminService.autoEndShifts();
     }
 }

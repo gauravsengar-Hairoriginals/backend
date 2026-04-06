@@ -60,6 +60,11 @@ export class CreateLeadDto {
     @IsOptional()
     name?: string;
 
+    @ApiPropertyOptional({ example: 'uuid' })
+    @IsString()
+    @IsOptional()
+    assignedToId?: string;
+
     @ApiProperty({ example: '9876543210' })
     @IsString()
     phone: string;

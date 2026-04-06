@@ -43,6 +43,9 @@ export interface LeadsQuery {
     // Priority filter
     isHighPriority?: boolean;
     isUnassigned?: boolean;
+    // Aging filter & sort (server-side)
+    agingDays?: number;                  // only leads older than N days
+    agingSort?: 'asc' | 'desc';          // sort by createdAt ASC (oldest first) or DESC (newest first)
 }
 
 /** Fields on LeadRecord (and Customer) we want to track in history */
@@ -193,6 +196,7 @@ export class LeadsService {
                 bookedDate: dto.bookedDate,
                 bookedTimeSlot: (dto as any).bookedTimeSlot,
                 nextActionDate: dto.nextActionDate,
+                assignedToId: dto.assignedToId,
                 status: LeadStatus.NEW,
                 isRevisit: false, // Will update below if prior leads exist
             });
@@ -222,7 +226,10 @@ export class LeadsService {
             }) as LeadRecord;
 
             // Auto-assign after creation (outside the em to avoid deadlock)
-            setImmediate(() => this.autoAssignLead(final).catch(e => this.logger.warn('autoAssign error: ' + e?.message)));
+            // Skip auto-assign if the lead was explicitly assigned during creation
+            if (!dto.assignedToId) {
+                setImmediate(() => this.autoAssignLead(final).catch(e => this.logger.warn('autoAssign error: ' + e?.message)));
+            }
 
             return final;
         });
@@ -443,9 +450,22 @@ export class LeadsService {
             .leftJoinAndSelect('lr.assignedTo', 'assignedTo')
             .leftJoinAndSelect('lr.leadProducts', 'leadProducts')
             .leftJoinAndSelect('leadProducts.options', 'productOptions')
-            .orderBy('lr.createdAt', 'DESC')
             .skip((page - 1) * limit)
             .take(limit);
+
+        // Default order — may be overridden by agingSort below
+        if (query.agingSort === 'asc') {
+            qb.orderBy('lr.createdAt', 'ASC');   // oldest first
+        } else if (query.agingSort === 'desc') {
+            qb.orderBy('lr.createdAt', 'DESC');  // newest first
+        } else {
+            qb.orderBy('lr.createdAt', 'DESC');
+        }
+
+        // Aging filter: only leads created in the last N days
+        if (query.agingDays && query.agingDays > 0) {
+            qb.andWhere("lr.createdAt >= NOW() - INTERVAL '1 day' * :agingDays", { agingDays: query.agingDays });
+        }
 
         // LEAD_CALLER only sees their own assigned leads
         if (requestingUser?.role === UserRole.LEAD_CALLER) {

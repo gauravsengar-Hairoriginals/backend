@@ -76,6 +76,8 @@ export class LeadsController {
         @Query('deduplicateByPhone') deduplicateByPhone?: string,
         @Query('isHighPriority') isHighPriority?: string,
         @Query('isUnassigned') isUnassigned?: string,
+        @Query('agingDays') agingDays?: number,
+        @Query('agingSort') agingSort?: 'asc' | 'desc',
         @CurrentUser() user?: User,
     ) {
         return this.leadsService.findAll({
@@ -86,6 +88,8 @@ export class LeadsController {
             deduplicateByPhone: deduplicateByPhone === 'true',
             isHighPriority: isHighPriority === 'true' ? true : undefined,
             isUnassigned: isUnassigned === 'true' ? true : undefined,
+            agingDays: agingDays ? +agingDays : undefined,
+            agingSort: agingSort || undefined,
         }, user);
     }
 
