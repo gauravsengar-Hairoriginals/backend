@@ -378,14 +378,14 @@ export class AdminService implements OnModuleInit {
         //               OR  Order.leadId     = LeadRecord.id         (direct link)
         // Financial status filtered to paid/partially_paid
         const ORDER_JOIN = `
-            o.customer_id = lr.customer_id                    -- UUID match (most reliable)
-            OR o.lead_id = lr.id                              -- direct EC booking link
+            o.customer_id = lr.customer_id::text
+            OR o.lead_id = lr.id::text
             OR (
                 o.customer_phone IS NOT NULL
                 AND o.customer_phone != ''
                 AND EXISTS (
                     SELECT 1 FROM customers c_join
-                    WHERE c_join.id = lr.customer_id
+                    WHERE c_join.id::text = lr.customer_id::text
                       AND c_join.phone LIKE CONCAT('%', o.customer_phone)
                 )
             )
