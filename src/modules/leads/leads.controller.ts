@@ -148,7 +148,7 @@ export class LeadsController {
     // ── Admin: bulk assign leads to a caller ──────────────────────────────────
     @Patch('bulk-assign')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
     bulkAssign(@Body() dto: BulkAssignLeadDto) {
         return this.leadsService.bulkAssign(dto.leadIds, dto.callerId);
     }
@@ -182,7 +182,7 @@ export class LeadsController {
     // ── Admin: assign a lead to a specific lead caller ────────────────────────
     @Patch(':id/assign')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
     assign(
         @Param('id', ParseUUIDPipe) id: string,
         @Body() dto: AssignLeadDto,

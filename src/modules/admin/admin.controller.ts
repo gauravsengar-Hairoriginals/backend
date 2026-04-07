@@ -156,7 +156,7 @@ export class AdminController {
     }
 
     @Get('lead-callers')
-    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
     async listLeadCallers(@Query('search') search?: string) {
         return this.adminService.listLeadCallers(search);
     }
