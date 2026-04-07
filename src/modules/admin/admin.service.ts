@@ -14,6 +14,9 @@ import { ReferralStatus } from '../referrals/entities/referral.entity';
 import { DiscountsService } from '../discounts/discounts.service';
 import { UsersService } from '../users/users.service';
 import { ExperienceCenter } from './entities/experience-center.entity';
+import { Order } from '../orders/entities/order.entity';
+import { LeadRecord } from '../leads/entities/lead-record.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { CityRegion } from './entities/city-region.entity';
 
 @Injectable()
@@ -25,6 +28,12 @@ export class AdminService implements OnModuleInit {
         private readonly ecRepository: Repository<ExperienceCenter>,
         @InjectRepository(CityRegion)
         private readonly cityRegionRepo: Repository<CityRegion>,
+        @InjectRepository(Order)
+        private readonly orderRepository: Repository<Order>,
+        @InjectRepository(LeadRecord)
+        private readonly leadRecordRepo: Repository<LeadRecord>,
+        @InjectRepository(Customer)
+        private readonly customerRepo: Repository<Customer>,
         private readonly referralsService: ReferralsService,
         private readonly salonsService: SalonsService,
         private readonly discountsService: DiscountsService,
@@ -308,6 +317,320 @@ export class AdminService implements OnModuleInit {
                 intl: CallerCategory.INTERNATIONAL_CALLER,
             })
             .execute();
+    }
+
+    // ── Conversion Dashboard ──────────────────────────────────────────────
+
+    async getConversionDashboard(
+        filter: 'today' | '7d' | 'month' | 'year' = 'month',
+    ) {
+        // ── Compute date range ─────────────────────────────────────────────
+        const now = new Date();
+        // IST offset: +05:30  (330 minutes)
+        const IST_OFFSET = 330 * 60 * 1000;
+        const todayIST = new Date(now.getTime() + IST_OFFSET);
+
+        let fromDate: Date;
+        let toDate: Date = now;
+        const year = todayIST.getUTCFullYear();
+        const month = todayIST.getUTCMonth(); // 0-indexed
+
+        if (filter === 'today') {
+            fromDate = new Date(Date.UTC(year, month, todayIST.getUTCDate()) - IST_OFFSET);
+        } else if (filter === '7d') {
+            fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (filter === 'year') {
+            fromDate = new Date(Date.UTC(year, 0, 1) - IST_OFFSET);
+        } else {
+            // month (default)
+            fromDate = new Date(Date.UTC(year, month, 1) - IST_OFFSET);
+        }
+
+        // ── Fetch all active LEAD_CALLER users ─────────────────────────────
+        const callers = await this.userRepository.find({
+            where: { role: UserRole.LEAD_CALLER, isActive: true },
+            select: ['id', 'name', 'callerCategory', 'callerRegions'],
+            order: { name: 'ASC' },
+        });
+
+        if (callers.length === 0) {
+            return { filter, fromDate, toDate, callers: [], totals: { leadsAssigned: 0, ordersConverted: 0, conversionRate: 0, gmv: 0 } };
+        }
+
+        const callerIds = callers.map(c => c.id);
+
+        // ── Lead counts per caller (in date window) ────────────────────────
+        const leadRows: { assignedToId: string; cnt: string }[] = await this.userRepository.manager
+            .createQueryBuilder()
+            .select('lr.assigned_to_id', 'assignedToId')
+            .addSelect('COUNT(DISTINCT lr.id)', 'cnt')
+            .from('lead_records', 'lr')
+            .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
+            .andWhere('lr.created_at >= :from', { from: fromDate })
+            .andWhere('lr.created_at <= :to', { to: toDate })
+            .groupBy('lr.assigned_to_id')
+            .getRawMany();
+
+        const leadMap = new Map(leadRows.map(r => [r.assignedToId, parseInt(r.cnt, 10)]));
+
+        // ── Order conversions per caller ────────────────────────────────────
+        // Match orders via: Order.customerId = LeadRecord.customerId (assigned to caller)
+        //               OR  Order.leadId     = LeadRecord.id         (direct link)
+        // Financial status filtered to paid/partially_paid
+        const orderRows: { callerId: string; ordersConverted: string; gmv: string }[] = await this.userRepository.manager
+            .createQueryBuilder()
+            .select('lr.assigned_to_id', 'callerId')
+            .addSelect('COUNT(DISTINCT o.id)', 'ordersConverted')
+            .addSelect('COALESCE(SUM(o.total), 0)', 'gmv')
+            .from('orders', 'o')
+            .innerJoin(
+                'lead_records', 'lr',
+                '(o.customer_id = lr.customer_id OR o.lead_id = lr.id)'
+            )
+            .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
+            .andWhere('o.financial_status IN (:...statuses)', { statuses: ['paid', 'partially_paid'] })
+            .andWhere('o.created_at >= :from', { from: fromDate })
+            .andWhere('o.created_at <= :to', { to: toDate })
+            .groupBy('lr.assigned_to_id')
+            .getRawMany();
+
+        const orderMap = new Map(orderRows.map(r => [r.callerId, { ordersConverted: parseInt(r.ordersConverted, 10), gmv: parseFloat(r.gmv) }]));
+
+        // ── Monthly breakdown for year filter ──────────────────────────────
+        let monthlyBreakdownMap = new Map<string, { month: number; leadsAssigned: number; ordersConverted: number; gmv: number }[]>();
+
+        if (filter === 'year') {
+            const monthlyLeadRows: { assignedToId: string; mon: string; cnt: string }[] = await this.userRepository.manager
+                .createQueryBuilder()
+                .select('lr.assigned_to_id', 'assignedToId')
+                .addSelect('EXTRACT(MONTH FROM lr.created_at)', 'mon')
+                .addSelect('COUNT(DISTINCT lr.id)', 'cnt')
+                .from('lead_records', 'lr')
+                .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
+                .andWhere('lr.created_at >= :from', { from: fromDate })
+                .andWhere('lr.created_at <= :to', { to: toDate })
+                .groupBy('lr.assigned_to_id, EXTRACT(MONTH FROM lr.created_at)')
+                .getRawMany();
+
+            const monthlyOrderRows: { callerId: string; mon: string; ordersConverted: string; gmv: string }[] = await this.userRepository.manager
+                .createQueryBuilder()
+                .select('lr.assigned_to_id', 'callerId')
+                .addSelect('EXTRACT(MONTH FROM o.created_at)', 'mon')
+                .addSelect('COUNT(DISTINCT o.id)', 'ordersConverted')
+                .addSelect('COALESCE(SUM(o.total), 0)', 'gmv')
+                .from('orders', 'o')
+                .innerJoin('lead_records', 'lr', '(o.customer_id = lr.customer_id OR o.lead_id = lr.id)')
+                .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
+                .andWhere('o.financial_status IN (:...statuses)', { statuses: ['paid', 'partially_paid'] })
+                .andWhere('o.created_at >= :from', { from: fromDate })
+                .andWhere('o.created_at <= :to', { to: toDate })
+                .groupBy('lr.assigned_to_id, EXTRACT(MONTH FROM o.created_at)')
+                .getRawMany();
+
+            // Build monthly lead map: callerId → month → count
+            const mLeadMap = new Map<string, Map<number, number>>();
+            for (const r of monthlyLeadRows) {
+                if (!mLeadMap.has(r.assignedToId)) mLeadMap.set(r.assignedToId, new Map());
+                mLeadMap.get(r.assignedToId)!.set(parseInt(r.mon, 10), parseInt(r.cnt, 10));
+            }
+            const mOrderMap = new Map<string, Map<number, { ordersConverted: number; gmv: number }>>();
+            for (const r of monthlyOrderRows) {
+                if (!mOrderMap.has(r.callerId)) mOrderMap.set(r.callerId, new Map());
+                mOrderMap.get(r.callerId)!.set(parseInt(r.mon, 10), { ordersConverted: parseInt(r.ordersConverted, 10), gmv: parseFloat(r.gmv) });
+            }
+
+            for (const caller of callers) {
+                const breakdown = Array.from({ length: 12 }, (_, i) => {
+                    const m = i + 1;
+                    const leads = mLeadMap.get(caller.id)?.get(m) ?? 0;
+                    const orders = mOrderMap.get(caller.id)?.get(m) ?? { ordersConverted: 0, gmv: 0 };
+                    return { month: m, leadsAssigned: leads, ordersConverted: orders.ordersConverted, gmv: orders.gmv };
+                });
+                monthlyBreakdownMap.set(caller.id, breakdown);
+            }
+        }
+
+        // ── Assemble response ──────────────────────────────────────────────
+        let totalLeads = 0, totalOrders = 0, totalGmv = 0;
+
+        const rows = callers.map(caller => {
+            const leadsAssigned = leadMap.get(caller.id) ?? 0;
+            const { ordersConverted = 0, gmv = 0 } = orderMap.get(caller.id) ?? {};
+            const conversionRate = leadsAssigned > 0 ? parseFloat(((ordersConverted / leadsAssigned) * 100).toFixed(2)) : 0;
+            totalLeads  += leadsAssigned;
+            totalOrders += ordersConverted;
+            totalGmv    += gmv;
+            return {
+                callerId: caller.id,
+                callerName: caller.name,
+                callerCategory: caller.callerCategory,
+                callerRegion: caller.callerRegions,
+                leadsAssigned,
+                ordersConverted,
+                conversionRate,
+                gmv,
+                ...(filter === 'year' ? { monthlyBreakdown: monthlyBreakdownMap.get(caller.id) ?? [] } : {}),
+            };
+        });
+
+        // Sort by GMV descending
+        rows.sort((a, b) => b.gmv - a.gmv);
+
+        return {
+            filter,
+            fromDate,
+            toDate,
+            callers: rows,
+            totals: {
+                leadsAssigned: totalLeads,
+                ordersConverted: totalOrders,
+                conversionRate: totalLeads > 0 ? parseFloat(((totalOrders / totalLeads) * 100).toFixed(2)) : 0,
+                gmv: totalGmv,
+            },
+        };
+    }
+
+    // ── Split Leads: customers with leads assigned to multiple callers ───────────
+
+    /**
+     * Returns customers who have leads assigned to more than one distinct caller.
+     * Each entry includes the customer, all their leads, and the distinct callers.
+     */
+    async getSplitLeads(page = 1, limit = 30, callerName?: string, phone?: string) {
+        const offset = (page - 1) * limit;
+
+        // Build a reusable helper that applies the shared WHERE predicates
+        const buildBase = (qb: any) => {
+            qb
+                .from('lead_records', 'lr')
+                .leftJoin('users',     'u', 'u.id = lr.assigned_to_id')
+                .leftJoin('customers', 'c', 'c.id = lr.customer_id')
+                .where('lr.assigned_to_id IS NOT NULL');
+
+            if (callerName?.trim()) {
+                qb.andWhere('u.name ILIKE :callerName', { callerName: `%${callerName.trim()}%` });
+            }
+            if (phone?.trim()) {
+                // Normalize: strip every non-digit character, then take the last 10 digits.
+                // This makes the search format-agnostic — "9876543210", "+91 9876543210",
+                // "09876543210", "919876543210" all resolve to the same 10-digit suffix and
+                // will match phone values stored as "+919876543210" in the DB.
+                const digits  = phone.trim().replace(/\D/g, '');
+                const last10  = digits.slice(-10);
+                if (last10.length >= 6) {
+                    qb.andWhere('c.phone LIKE :phone', { phone: `%${last10}` });
+                }
+            }
+            return qb;
+        };
+
+        // Find customerIds with > 1 distinct assigned caller
+        const mainQb = this.userRepository.manager.createQueryBuilder();
+        mainQb
+            .select('lr.customer_id', 'cid')
+            .addSelect('COUNT(DISTINCT lr.assigned_to_id)', 'callerCount');
+        buildBase(mainQb);
+        const splitCids: { cid: string; callerCount: string }[] = await mainQb
+            .groupBy('lr.customer_id')
+            .having('COUNT(DISTINCT lr.assigned_to_id) > 1')
+            .orderBy('callerCount', 'DESC')
+            .offset(offset)
+            .limit(limit)
+            .getRawMany();
+
+        // Total count
+        const countQb = this.userRepository.manager.createQueryBuilder();
+        countQb.select('lr.customer_id');
+        buildBase(countQb);
+        const totalRaw: { cnt: string } | undefined = await this.userRepository.manager
+            .createQueryBuilder()
+            .select('COUNT(*)', 'cnt')
+            .from(
+                () => countQb.groupBy('lr.customer_id').having('COUNT(DISTINCT lr.assigned_to_id) > 1'),
+                'sub',
+            )
+            .getRawOne();
+        const total = parseInt(totalRaw?.cnt ?? '0', 10);
+
+        if (splitCids.length === 0) return { total, page, limit, items: [] };
+
+        const customerIds = splitCids.map(r => r.cid);
+
+        // Fetch customers
+        const customers = await this.customerRepo.find({
+            where: customerIds.map(id => ({ id })) as any,
+            select: ['id', 'firstName', 'lastName', 'phone', 'email'],
+        });
+        const customerMap = new Map(customers.map(c => [c.id, c]));
+
+        // Fetch all leads for those customers (with assignedTo user)
+        const leads = await this.leadRecordRepo.find({
+            where: customerIds.map(id => ({ customerId: id })) as any,
+            relations: ['assignedTo'],
+            select: {
+                id: true, customerId: true, source: true, status: true,
+                leadCategory: true, createdAt: true, assignedToId: true,
+                assignedTo: { id: true, name: true, callerCategory: true } as any,
+            },
+            order: { createdAt: 'DESC' },
+        });
+
+        // Group leads by customerId
+        const leadsByCustomer = new Map<string, typeof leads>();
+        for (const lead of leads) {
+            if (!leadsByCustomer.has(lead.customerId)) leadsByCustomer.set(lead.customerId, []);
+            leadsByCustomer.get(lead.customerId)!.push(lead);
+        }
+
+        const items = splitCids.map(r => {
+            const cust = customerMap.get(r.cid);
+            const custLeads = leadsByCustomer.get(r.cid) ?? [];
+            const uniqueCallers = [...new Map(
+                custLeads
+                    .filter(l => l.assignedToId)
+                    .map(l => [l.assignedToId, { id: l.assignedTo?.id ?? l.assignedToId, name: l.assignedTo?.name ?? 'Unknown' }]),
+            ).values()];
+            return {
+                customerId: r.cid,
+                customerName: cust ? `${cust.firstName ?? ''} ${cust.lastName ?? ''}`.trim() : 'Unknown',
+                customerPhone: cust?.phone ?? '',
+                customerEmail: cust?.email ?? '',
+                distinctCallerCount: parseInt(r.callerCount, 10),
+                callers: uniqueCallers,
+                leads: custLeads.map(l => ({
+                    id: l.id,
+                    source: l.source,
+                    status: l.status,
+                    leadCategory: l.leadCategory,
+                    createdAt: l.createdAt,
+                    assignedToId: l.assignedToId,
+                    assignedToName: l.assignedTo?.name ?? null,
+                })),
+            };
+        });
+
+        return { total, page, limit, items };
+    }
+
+    /**
+     * Reassigns all leads for `customerId` to `assignedToId`.
+     * Returns the count of updated leads.
+     */
+    async consolidateLeads(customerId: string, assignedToId: string): Promise<{ updated: number }> {
+        // Verify the target caller exists and is a LEAD_CALLER
+        const caller = await this.userRepository.findOne({
+            where: { id: assignedToId, role: UserRole.LEAD_CALLER },
+        });
+        if (!caller) throw new NotFoundException(`Caller ${assignedToId} not found or is not a Lead Caller`);
+
+        const result = await this.leadRecordRepo
+            .createQueryBuilder()
+            .update(LeadRecord)
+            .set({ assignedToId, assignedToName: caller.name ?? '' } as any)
+            .where('customer_id = :customerId', { customerId })
+            .execute();
+
+        return { updated: result.affected ?? 0 };
     }
 
     // ── Experience Centers Management ─────────────────────────────────────

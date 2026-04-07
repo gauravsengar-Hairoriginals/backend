@@ -200,7 +200,44 @@ export class AdminController {
         return this.adminService.endShift(id);
     }
 
+    // ── Conversion Dashboard ─────────────────────────────────────────────
+    @Get('conversion-dashboard')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async getConversionDashboard(
+        @Query('filter') filter: string,
+    ) {
+        const validFilters = ['today', '7d', 'month', 'year'];
+        const f = validFilters.includes(filter) ? filter as any : 'month';
+        return this.adminService.getConversionDashboard(f);
+    }
+
     // ── Experience Centers Management ───────────────────────────────────
+
+    // ── Split Leads ──────────────────────────────────────────────────────
+    @Get('split-leads')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async getSplitLeads(
+        @Query('page')       page?: string,
+        @Query('limit')      limit?: string,
+        @Query('callerName') callerName?: string,
+        @Query('phone')      phone?: string,
+    ) {
+        return this.adminService.getSplitLeads(
+            page  ? parseInt(page,  10) : 1,
+            limit ? parseInt(limit, 10) : 30,
+            callerName,
+            phone,
+        );
+    }
+
+    @Post('split-leads/consolidate')
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    async consolidateLeads(
+        @Body() body: { customerId: string; assignedToId: string },
+    ) {
+        return this.adminService.consolidateLeads(body.customerId, body.assignedToId);
+    }
+
 
     @Post('experience-centers')
     @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)

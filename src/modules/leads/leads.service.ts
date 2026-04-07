@@ -210,6 +210,36 @@ export class LeadsService {
                 leadRecord.isRevisit = true;
             }
 
+            // ── Sticky caller: re-use the caller from any prior lead for this customer ──
+            // If no explicit assignment was given via the DTO, look up the most recent
+            // lead that was assigned and reuse that caller (provided they are still active).
+            // This runs synchronously inside the transaction so the saved record and the
+            // API response already contain the correct assignedToId.
+            if (!dto.assignedToId && priorLeadCount > 0) {
+                const priorAssignedLead = await em.findOne(LeadRecord, {
+                    where: { customerId: customer.id, assignedToId: Not(IsNull()) },
+                    order: { createdAt: 'DESC' },
+                });
+                if (priorAssignedLead?.assignedToId) {
+                    const priorCaller = await em.findOne(User, {
+                        where: { id: priorAssignedLead.assignedToId, isActive: true },
+                    });
+                    if (priorCaller) {
+                        leadRecord.assignedToId   = priorCaller.id;
+                        leadRecord.assignedToName = priorCaller.name ?? '';
+                        this.logger.log(
+                            `[CREATE] ♻️ Sticky caller pre-assigned: "${priorCaller.name}" ` +
+                            `from prior lead ${priorAssignedLead.id}`,
+                        );
+                    } else {
+                        this.logger.warn(
+                            `[CREATE] Prior caller ${priorAssignedLead.assignedToId} is inactive ` +
+                            `— falling through to auto-assign round-robin`,
+                        );
+                    }
+                }
+            }
+
             const saved = await em.save(LeadRecord, leadRecord);
 
             // Save products (Two-Layer)
@@ -218,16 +248,16 @@ export class LeadsService {
                 await em.save(LeadProduct, leadProducts);
             }
 
-            this.logger.log(`Lead created: record=${saved.id} customer=${customer.id}`);
+            this.logger.log(`Lead created: record=${saved.id} customer=${customer.id} assignedToId=${saved.assignedToId ?? 'unassigned'}`);
 
             const final = await em.findOne(LeadRecord, {
                 where: { id: saved.id },
                 relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
             }) as LeadRecord;
 
-            // Auto-assign after creation (outside the em to avoid deadlock)
-            // Skip auto-assign if the lead was explicitly assigned during creation
-            if (!dto.assignedToId) {
+            // Trigger async round-robin ONLY when no assignment was resolved
+            // (neither from dto.assignedToId nor from the sticky-caller check above).
+            if (!leadRecord.assignedToId) {
                 setImmediate(() => this.autoAssignLead(final).catch(e => this.logger.warn('autoAssign error: ' + e?.message)));
             }
 

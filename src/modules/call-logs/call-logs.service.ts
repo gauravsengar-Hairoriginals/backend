@@ -135,15 +135,33 @@ export class CallLogsService {
             this.logger.log(`[OUTBOUND] Found existing customer id=${customer.id}`);
         }
 
-        // 2. Find most recent open (non-closed) lead for this customer
-        let lead = await this.leadRepo.findOne({
-            where: { customerId: customer.id },
-            order: { createdAt: 'DESC' },
-        });
+        // 2. Find most recent OPEN lead for this customer
+        // "Closed" statuses = leads that are terminal (converted / dropped).
+        // If the customer has ONLY closed leads, treat them as a fresh enquiry and
+        // create a new lead — do NOT reuse a completed/dropped record.
+        const CLOSED_STATUSES_OB = [
+            'dropped',
+            'converted:Marked to EC',
+            'converted:Marked to HT',
+            'converted:Marked to VC',
+        ];
+        const priorCountOb = await this.leadRepo.count({ where: { customerId: customer.id } });
+        let lead = await this.leadRepo
+            .createQueryBuilder('lr')
+            .where('lr.customer_id = :cid', { cid: customer.id })
+            .andWhere('lr.status NOT IN (:...closed)', { closed: CLOSED_STATUSES_OB })
+            .orderBy('lr.created_at', 'DESC')
+            .getOne();
 
-        if (!lead) {
-            // No lead in our system at all — create one as 'Outbound Call'
-            this.logger.log(`[OUTBOUND] No existing lead — creating Outbound Call lead for customer ${customer.id}`);
+        if (lead) {
+            // ── Reuse existing open lead ──────────────────────────────────────
+            this.logger.log(`[OUTBOUND] Reusing existing open lead id=${lead.id} status=${lead.status}`);
+        } else {
+            // No open lead — either brand-new customer or all prior leads are closed.
+            // Create a fresh 'Outbound Call' lead in both cases.
+            this.logger.log(
+                `[OUTBOUND] No open lead found (total prior=${priorCountOb}) — creating new Outbound Call lead for customer ${customer.id}`,
+            );
             const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
@@ -151,13 +169,11 @@ export class CallLogsService {
                     source: 'Outbound Call',
                     status: LeadStatus.NEW,
                     leadCategory: 'WEBSITE',
-                    isRevisit: false,
+                    isRevisit: priorCountOb > 0, // true if they had prior (now-closed) leads
                     ...(city && { city }),
                 }),
             );
-            this.logger.log(`[OUTBOUND] Created lead id=${lead.id}`);
-        } else {
-            this.logger.log(`[OUTBOUND] Linking call log to existing lead id=${lead.id}`);
+            this.logger.log(`[OUTBOUND] Created lead id=${lead.id} isRevisit=${lead.isRevisit}`);
         }
 
         // 3. Create the call log
@@ -262,8 +278,10 @@ export class CallLogsService {
             }
         }
 
-        // ── 2. Find existing OPEN lead — reuse it to avoid duplicates ───────────
-        // "Open" = any status that is not a terminal/closed status.
+        // ── 2. Find most recent OPEN lead — reuse if active, otherwise create fresh ──
+        // "Closed" = leads in a terminal status (converted / dropped).
+        // If a customer calls in but all their prior leads are closed, we create a
+        // brand-new Inbound IVR lead so the call is tracked cleanly.
         const CLOSED_STATUSES = [
             'dropped',
             'converted:Marked to EC',
@@ -279,18 +297,23 @@ export class CallLogsService {
             .getOne();
 
         if (lead) {
-            // ── Reuse existing open lead ─────────────────────────────────────────
-            this.logger.log(`[INBOUND] Step 4: Found existing open lead id=${lead.id} status=${lead.status} — reusing instead of creating duplicate`);
-            // Mark as revisit if not already flagged
+            // ── Reuse existing open lead ──────────────────────────────────────
+            this.logger.log(
+                `[INBOUND] Step 4: Found existing open lead id=${lead.id} status=${lead.status} — reusing`,
+            );
             if (!lead.isRevisit) {
                 lead.isRevisit = true;
                 await this.leadRepo.save(lead);
                 this.logger.log(`[INBOUND] Step 4: Marked lead ${lead.id} as isRevisit=true`);
             }
         } else {
-            // ── No open lead — create a fresh one ───────────────────────────────
+            // ── No open lead — create a fresh one ────────────────────────────
+            // This covers both: (a) customer has zero leads, (b) all prior leads are closed.
             const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
-            this.logger.log(`[INBOUND] Step 4: No open lead found. Prior count=${priorCount} → creating new Inbound IVR lead`);
+            this.logger.log(
+                `[INBOUND] Step 4: No open lead found. Prior count=${priorCount} ` +
+                `(${priorCount > 0 ? 'prior leads all closed' : 'brand new'}) → creating new Inbound IVR lead`,
+            );
             const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
@@ -298,11 +321,11 @@ export class CallLogsService {
                     source: 'Inbound IVR',
                     status: LeadStatus.NEW,
                     leadCategory: 'WEBSITE',
-                    isRevisit: priorCount > 0,
+                    isRevisit: priorCount > 0, // revisit=true if they had prior (now-closed) leads
                     ...(city && { city }),
                 }),
             );
-            this.logger.log(`[INBOUND] Step 4: ✅ Created new lead id=${lead.id} isRevisit=${lead.isRevisit}`);
+            this.logger.log(`[INBOUND] Step 4: ✅ Created lead id=${lead.id} isRevisit=${lead.isRevisit}`);
         }
 
         // ── 3. Create the call log with callback data filled in ─────────────────
