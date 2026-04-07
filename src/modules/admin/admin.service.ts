@@ -377,16 +377,27 @@ export class AdminService implements OnModuleInit {
         // Match orders via: Order.customerId = LeadRecord.customerId (assigned to caller)
         //               OR  Order.leadId     = LeadRecord.id         (direct link)
         // Financial status filtered to paid/partially_paid
+        const ORDER_JOIN = `
+            o.customer_id = lr.customer_id                    -- UUID match (most reliable)
+            OR o.lead_id = lr.id                              -- direct EC booking link
+            OR (
+                o.customer_phone IS NOT NULL
+                AND o.customer_phone != ''
+                AND EXISTS (
+                    SELECT 1 FROM customers c_join
+                    WHERE c_join.id = lr.customer_id
+                      AND c_join.phone LIKE CONCAT('%', o.customer_phone)
+                )
+            )
+        `;
+
         const orderRows: { callerId: string; ordersConverted: string; gmv: string }[] = await this.userRepository.manager
             .createQueryBuilder()
             .select('lr.assigned_to_id', 'callerId')
             .addSelect('COUNT(DISTINCT o.id)', 'ordersConverted')
             .addSelect('COALESCE(SUM(o.total), 0)', 'gmv')
             .from('orders', 'o')
-            .innerJoin(
-                'lead_records', 'lr',
-                '(o.customer_id = lr.customer_id OR o.lead_id = lr.id)'
-            )
+            .innerJoin('lead_records', 'lr', ORDER_JOIN)
             .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
             .andWhere('o.financial_status IN (:...statuses)', { statuses: ['paid', 'partially_paid'] })
             .andWhere('o.created_at >= :from', { from: fromDate })
@@ -419,7 +430,7 @@ export class AdminService implements OnModuleInit {
                 .addSelect('COUNT(DISTINCT o.id)', 'ordersConverted')
                 .addSelect('COALESCE(SUM(o.total), 0)', 'gmv')
                 .from('orders', 'o')
-                .innerJoin('lead_records', 'lr', '(o.customer_id = lr.customer_id OR o.lead_id = lr.id)')
+                .innerJoin('lead_records', 'lr', ORDER_JOIN)
                 .where('lr.assigned_to_id IN (:...ids)', { ids: callerIds })
                 .andWhere('o.financial_status IN (:...statuses)', { statuses: ['paid', 'partially_paid'] })
                 .andWhere('o.created_at >= :from', { from: fromDate })
@@ -499,54 +510,85 @@ export class AdminService implements OnModuleInit {
     async getSplitLeads(page = 1, limit = 30, callerName?: string, phone?: string) {
         const offset = (page - 1) * limit;
 
-        // Build a reusable helper that applies the shared WHERE predicates
-        const buildBase = (qb: any) => {
-            qb
-                .from('lead_records', 'lr')
-                .leftJoin('users',     'u', 'u.id = lr.assigned_to_id')
-                .leftJoin('customers', 'c', 'c.id = lr.customer_id')
-                .where('lr.assigned_to_id IS NOT NULL');
+        // "Split" = a customer whose leads are NOT all going to the same single caller.
+        // That covers three cases:
+        //   A) Multiple distinct assigned callers            (caller1 + caller2)
+        //   B) Some leads assigned, some unassigned          (caller1 + NULL)
+        //   C) Leads assigned to one caller + also unassigned (caller1 + NULL)
+        //
+        // SQL trick:
+        //   COUNT(DISTINCT assigned_to_id) ignores NULLs, so cases B/C aren't caught by >1.
+        //   We add:  OR (COUNT(assigned_to_id) > 0 AND COUNT(*) > COUNT(assigned_to_id))
+        //   i.e. "has at least one assigned lead BUT total rows > assigned rows → some are NULL"
 
-            if (callerName?.trim()) {
-                qb.andWhere('u.name ILIKE :callerName', { callerName: `%${callerName.trim()}%` });
+        const HAVING_CLAUSE = `
+            COUNT(DISTINCT lr.assigned_to_id) > 1
+            OR (
+                COUNT(lr.assigned_to_id) > 0
+                AND COUNT(*) > COUNT(lr.assigned_to_id)
+            )
+        `;
+
+        // Build WHERE params (without touching the FROM/JOIN — those are per-query)
+        const whereFragments: string[] = [];
+        const whereParams: Record<string, any> = {};
+
+        if (callerName?.trim()) {
+            // Subquery approach: find customer_ids that have at least one lead
+            // assigned to a caller matching the name — without filtering out other rows
+            whereFragments.push(`lr.customer_id IN (
+                SELECT lr_c.customer_id FROM lead_records lr_c
+                INNER JOIN users u_c ON u_c.id = lr_c.assigned_to_id
+                WHERE u_c.name ILIKE :callerName
+            )`);
+            whereParams.callerName = `%${callerName.trim()}%`;
+        }
+
+        if (phone?.trim()) {
+            const digits = phone.trim().replace(/\D/g, '');
+            const last10 = digits.slice(-10);
+            if (last10.length >= 6) {
+                whereFragments.push('c.phone LIKE :phone');
+                whereParams.phone = `%${last10}`;
             }
-            if (phone?.trim()) {
-                // Normalize: strip every non-digit character, then take the last 10 digits.
-                // This makes the search format-agnostic — "9876543210", "+91 9876543210",
-                // "09876543210", "919876543210" all resolve to the same 10-digit suffix and
-                // will match phone values stored as "+919876543210" in the DB.
-                const digits  = phone.trim().replace(/\D/g, '');
-                const last10  = digits.slice(-10);
-                if (last10.length >= 6) {
-                    qb.andWhere('c.phone LIKE :phone', { phone: `%${last10}` });
-                }
+        }
+
+        const applyWhere = (qb: any) => {
+            if (whereFragments.length > 0) {
+                qb.where(whereFragments.join(' AND '), whereParams);
             }
-            return qb;
         };
 
-        // Find customerIds with > 1 distinct assigned caller
-        const mainQb = this.userRepository.manager.createQueryBuilder();
-        mainQb
+        // ── Main data query ──────────────────────────────────────────────
+        const mainQb = this.userRepository.manager.createQueryBuilder()
             .select('lr.customer_id', 'cid')
-            .addSelect('COUNT(DISTINCT lr.assigned_to_id)', 'callerCount');
-        buildBase(mainQb);
-        const splitCids: { cid: string; callerCount: string }[] = await mainQb
-            .groupBy('lr.customer_id')
-            .having('COUNT(DISTINCT lr.assigned_to_id) > 1')
-            .orderBy('callerCount', 'DESC')
-            .offset(offset)
-            .limit(limit)
-            .getRawMany();
+            .addSelect('COUNT(DISTINCT lr.assigned_to_id)', 'callerCount')
+            .addSelect('COUNT(*)',                          'totalLeads')
+            .addSelect('COUNT(lr.assigned_to_id)',          'assignedLeads')
+            .from('lead_records', 'lr')
+            .leftJoin('customers', 'c', 'c.id = lr.customer_id');
+        applyWhere(mainQb);
+        const splitCids: { cid: string; callerCount: string; totalLeads: string; assignedLeads: string }[] =
+            await mainQb
+                .groupBy('lr.customer_id')
+                .having(HAVING_CLAUSE)
+                .orderBy('COUNT(DISTINCT lr.assigned_to_id)', 'DESC')
+                .addOrderBy('COUNT(*)', 'DESC')
+                .offset(offset)
+                .limit(limit)
+                .getRawMany();
 
-        // Total count
-        const countQb = this.userRepository.manager.createQueryBuilder();
-        countQb.select('lr.customer_id');
-        buildBase(countQb);
+        // ── Count query ──────────────────────────────────────────────────
+        const countQb = this.userRepository.manager.createQueryBuilder()
+            .select('lr.customer_id')
+            .from('lead_records', 'lr')
+            .leftJoin('customers', 'c', 'c.id = lr.customer_id');
+        applyWhere(countQb);
         const totalRaw: { cnt: string } | undefined = await this.userRepository.manager
             .createQueryBuilder()
             .select('COUNT(*)', 'cnt')
             .from(
-                () => countQb.groupBy('lr.customer_id').having('COUNT(DISTINCT lr.assigned_to_id) > 1'),
+                () => countQb.groupBy('lr.customer_id').having(HAVING_CLAUSE),
                 'sub',
             )
             .getRawOne();
@@ -563,7 +605,7 @@ export class AdminService implements OnModuleInit {
         });
         const customerMap = new Map(customers.map(c => [c.id, c]));
 
-        // Fetch all leads for those customers (with assignedTo user)
+        // Fetch ALL leads for those customers (assigned + unassigned)
         const leads = await this.leadRecordRepo.find({
             where: customerIds.map(id => ({ customerId: id })) as any,
             relations: ['assignedTo'],
@@ -585,17 +627,22 @@ export class AdminService implements OnModuleInit {
         const items = splitCids.map(r => {
             const cust = customerMap.get(r.cid);
             const custLeads = leadsByCustomer.get(r.cid) ?? [];
-            const uniqueCallers = [...new Map(
-                custLeads
-                    .filter(l => l.assignedToId)
-                    .map(l => [l.assignedToId, { id: l.assignedTo?.id ?? l.assignedToId, name: l.assignedTo?.name ?? 'Unknown' }]),
-            ).values()];
+
+            // Build unique callers list — include 'Unassigned' as a sentinel if any lead is NULL
+            const callerMap = new Map<string, { id: string; name: string }>();
+            for (const l of custLeads) {
+                const key  = l.assignedToId ?? '__unassigned__';
+                const name = l.assignedTo?.name ?? (l.assignedToId ? 'Unknown' : 'Unassigned');
+                if (!callerMap.has(key)) callerMap.set(key, { id: key, name });
+            }
+            const uniqueCallers = [...callerMap.values()];
+
             return {
                 customerId: r.cid,
-                customerName: cust ? `${cust.firstName ?? ''} ${cust.lastName ?? ''}`.trim() : 'Unknown',
+                customerName: cust ? `${cust.firstName ?? ''} ${cust.lastName ?? ''}`.trim() || 'Unknown' : 'Unknown',
                 customerPhone: cust?.phone ?? '',
                 customerEmail: cust?.email ?? '',
-                distinctCallerCount: parseInt(r.callerCount, 10),
+                distinctCallerCount: uniqueCallers.length,
                 callers: uniqueCallers,
                 leads: custLeads.map(l => ({
                     id: l.id,
@@ -611,6 +658,7 @@ export class AdminService implements OnModuleInit {
 
         return { total, page, limit, items };
     }
+
 
     /**
      * Reassigns all leads for `customerId` to `assignedToId`.
