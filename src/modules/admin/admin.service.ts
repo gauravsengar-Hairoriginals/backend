@@ -511,17 +511,13 @@ export class AdminService implements OnModuleInit {
         const offset = (page - 1) * limit;
 
         // "Split" = a customer whose leads are NOT all going to the same single caller.
-        // That covers three cases:
-        //   A) Multiple distinct assigned callers            (caller1 + caller2)
-        //   B) Some leads assigned, some unassigned          (caller1 + NULL)
-        //   C) Leads assigned to one caller + also unassigned (caller1 + NULL)
+        //   A) Multiple distinct assigned callers  (caller1 + caller2)
+        //   B) Some leads assigned, some unassigned (caller1 + NULL)
         //
-        // SQL trick:
-        //   COUNT(DISTINCT assigned_to_id) ignores NULLs, so cases B/C aren't caught by >1.
-        //   We add:  OR (COUNT(assigned_to_id) > 0 AND COUNT(*) > COUNT(assigned_to_id))
-        //   i.e. "has at least one assigned lead BUT total rows > assigned rows → some are NULL"
+        // COUNT(DISTINCT) ignores NULLs, so case B needs the extra OR clause:
+        //   OR (COUNT(assigned_to_id) > 0 AND COUNT(*) > COUNT(assigned_to_id))
 
-        const HAVING_CLAUSE = `
+        const HAVING_SQL = `
             COUNT(DISTINCT lr.assigned_to_id) > 1
             OR (
                 COUNT(lr.assigned_to_id) > 0
@@ -529,70 +525,56 @@ export class AdminService implements OnModuleInit {
             )
         `;
 
-        // Build WHERE params (without touching the FROM/JOIN — those are per-query)
-        const whereFragments: string[] = [];
-        const whereParams: Record<string, any> = {};
+        // Build positional params + WHERE fragments for raw SQL
+        const params: any[] = [];
+        const whereParts: string[] = [];
 
         if (callerName?.trim()) {
-            // Subquery approach: find customer_ids that have at least one lead
-            // assigned to a caller matching the name — without filtering out other rows
-            whereFragments.push(`lr.customer_id IN (
+            params.push(`%${callerName.trim()}%`);
+            whereParts.push(`lr.customer_id IN (
                 SELECT lr_c.customer_id FROM lead_records lr_c
                 INNER JOIN users u_c ON u_c.id = lr_c.assigned_to_id
-                WHERE u_c.name ILIKE :callerName
+                WHERE u_c.name ILIKE $${params.length}
             )`);
-            whereParams.callerName = `%${callerName.trim()}%`;
         }
 
         if (phone?.trim()) {
-            const digits = phone.trim().replace(/\D/g, '');
-            const last10 = digits.slice(-10);
+            const last10 = phone.trim().replace(/\D/g, '').slice(-10);
             if (last10.length >= 6) {
-                whereFragments.push('c.phone LIKE :phone');
-                whereParams.phone = `%${last10}`;
+                params.push(`%${last10}`);
+                whereParts.push(`c.phone LIKE $${params.length}`);
             }
         }
 
-        const applyWhere = (qb: any) => {
-            if (whereFragments.length > 0) {
-                qb.where(whereFragments.join(' AND '), whereParams);
-            }
-        };
+        const WHERE = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
 
-        // ── Main data query ──────────────────────────────────────────────
-        const mainQb = this.userRepository.manager.createQueryBuilder()
-            .select('lr.customer_id', 'cid')
-            .addSelect('COUNT(DISTINCT lr.assigned_to_id)', 'callerCount')
-            .addSelect('COUNT(*)',                          'totalLeads')
-            .addSelect('COUNT(lr.assigned_to_id)',          'assignedLeads')
-            .from('lead_records', 'lr')
-            .leftJoin('customers', 'c', 'c.id = lr.customer_id');
-        applyWhere(mainQb);
-        const splitCids: { cid: string; callerCount: string; totalLeads: string; assignedLeads: string }[] =
-            await mainQb
-                .groupBy('lr.customer_id')
-                .having(HAVING_CLAUSE)
-                .orderBy('COUNT(DISTINCT lr.assigned_to_id)', 'DESC')
-                .addOrderBy('COUNT(*)', 'DESC')
-                .offset(offset)
-                .limit(limit)
-                .getRawMany();
+        const BASE_FROM = `
+            FROM lead_records lr
+            LEFT JOIN customers c ON c.id = lr.customer_id
+            ${WHERE}
+            GROUP BY lr.customer_id
+            HAVING ${HAVING_SQL}
+        `;
 
-        // ── Count query ──────────────────────────────────────────────────
-        const countQb = this.userRepository.manager.createQueryBuilder()
-            .select('lr.customer_id')
-            .from('lead_records', 'lr')
-            .leftJoin('customers', 'c', 'c.id = lr.customer_id');
-        applyWhere(countQb);
-        const totalRaw: { cnt: string } | undefined = await this.userRepository.manager
-            .createQueryBuilder()
-            .select('COUNT(*)', 'cnt')
-            .from(
-                () => countQb.groupBy('lr.customer_id').having(HAVING_CLAUSE),
-                'sub',
-            )
-            .getRawOne();
-        const total = parseInt(totalRaw?.cnt ?? '0', 10);
+        // ── Count query (raw SQL — avoids TypeORM subquery parenthesis bug) ──
+        const countResult: { cnt: string }[] = await this.userRepository.manager.query(
+            `SELECT COUNT(*) AS cnt FROM (SELECT lr.customer_id ${BASE_FROM}) sub`,
+            params,
+        );
+        const total = parseInt(countResult[0]?.cnt ?? '0', 10);
+
+        // ── Main data query ──────────────────────────────────────────────────
+        const dataParams = [...params, limit, offset];
+        const splitCids: { cid: string; callerCount: string }[] =
+            await this.userRepository.manager.query(
+                `SELECT
+                    lr.customer_id                   AS cid,
+                    COUNT(DISTINCT lr.assigned_to_id) AS "callerCount"
+                 ${BASE_FROM}
+                 ORDER BY COUNT(DISTINCT lr.assigned_to_id) DESC, COUNT(*) DESC
+                 LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+                dataParams,
+            );
 
         if (splitCids.length === 0) return { total, page, limit, items: [] };
 
