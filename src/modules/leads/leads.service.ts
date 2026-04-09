@@ -1419,6 +1419,122 @@ export class LeadsService {
         this.logger.log(`Bulk deleted ${result.affected} lead records`);
         return { deleted: result.affected ?? 0 };
     }
+
+    // ── Delete Leads by Phone Numbers from Excel ──────────────────────────
+    async deleteByPhoneNumbers(
+        fileBuffer: Buffer,
+    ): Promise<{ deleted: number; notFound: number; phoneNumbers: string[]; notFoundPhones: string[]; errors: string[] }> {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const XLSX = require('xlsx');
+
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        if (rows.length === 0) {
+            throw new BadRequestException('The uploaded Excel file is empty or has no data rows.');
+        }
+
+        // Normalize column headers (strip whitespace, lowercase, remove special chars)
+        const normalizedRows = rows.map(rawRow => {
+            const normalized: Record<string, any> = {};
+            for (const key of Object.keys(rawRow)) {
+                const cleanKey = key.toLowerCase()
+                    .replace(/[\s_]+/g, '_')
+                    .replace(/\r?\n|\r/g, '')
+                    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                    .trim();
+                normalized[cleanKey] = rawRow[key];
+            }
+            return normalized;
+        });
+
+        // Check that the required column exists
+        const firstRow = normalizedRows[0];
+        const phoneColKey = Object.keys(firstRow).find(k => k === 'customer_phone_number');
+        if (!phoneColKey) {
+            throw new BadRequestException(
+                'Column "customer_phone_number" not found in the uploaded file. ' +
+                `Found columns: ${Object.keys(firstRow).join(', ')}`,
+            );
+        }
+
+        const errors: string[] = [];
+        const rawPhones: string[] = [];
+
+        for (let i = 0; i < normalizedRows.length; i++) {
+            const phone = String(normalizedRows[i]['customer_phone_number'] ?? '').trim();
+            if (!phone) {
+                errors.push(`Row ${i + 2}: empty phone number — skipped`);
+                continue;
+            }
+            rawPhones.push(phone);
+        }
+
+        if (rawPhones.length === 0) {
+            throw new BadRequestException('No phone numbers found in the "customer_phone_number" column.');
+        }
+
+        // Normalize all phone numbers
+        const normalizedPhones = rawPhones.map(p => normalizePhone(p));
+        const uniquePhones = [...new Set(normalizedPhones)];
+
+        this.logger.log(`[DELETE-BY-PHONE] Processing ${uniquePhones.length} unique phone numbers`);
+
+        // Find customers matching these phone numbers
+        const customers = await this.customerRepo
+            .createQueryBuilder('c')
+            .where('c.phone IN (:...phones)', { phones: uniquePhones })
+            .getMany();
+
+        const foundPhones = new Set(customers.map(c => c.phone));
+        const notFoundPhones = uniquePhones.filter(p => !foundPhones.has(p));
+
+        if (customers.length === 0) {
+            this.logger.warn(`[DELETE-BY-PHONE] No customers found for any of the ${uniquePhones.length} phone numbers`);
+            return {
+                deleted: 0,
+                notFound: uniquePhones.length,
+                phoneNumbers: uniquePhones,
+                notFoundPhones: uniquePhones,
+                errors,
+            };
+        }
+
+        const customerIds = customers.map(c => c.id);
+
+        // Find all lead records for these customers
+        const leadsToDelete = await this.leadRecordRepo
+            .createQueryBuilder('lr')
+            .where('lr.customer_id IN (:...customerIds)', { customerIds })
+            .getMany();
+
+        if (leadsToDelete.length === 0) {
+            return {
+                deleted: 0,
+                notFound: notFoundPhones.length,
+                phoneNumbers: uniquePhones,
+                notFoundPhones,
+                errors,
+            };
+        }
+
+        // Delete them
+        await this.leadRecordRepo.remove(leadsToDelete);
+
+        this.logger.log(
+            `[DELETE-BY-PHONE] Deleted ${leadsToDelete.length} lead records for ${customers.length} customers ` +
+            `(${notFoundPhones.length} phone numbers had no matching customer)`,
+        );
+
+        return {
+            deleted: leadsToDelete.length,
+            notFound: notFoundPhones.length,
+            phoneNumbers: uniquePhones,
+            notFoundPhones,
+            errors,
+        };
+    }
     // ── Bulk-Assign Qkonnect / Inbound IVR Leads ──────────────────────────
     async bulkAssignQkonnectLeads(): Promise<{ assigned: number; skipped: number; details: any[] }> {
         // Find all IVR / qkonnect leads (assigned or not — re-assign to the last caller)

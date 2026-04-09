@@ -167,6 +167,16 @@ export class LeadsController {
         return this.leadsService.importFromLeadSquared(file.buffer, targetStatus);
     }
 
+    // ── Admin: delete leads by phone numbers from Excel ───────────────────────
+    @Post('delete-by-phone-excel')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @UseInterceptors(FileInterceptor('file'))
+    deleteByPhoneExcel(@UploadedFile() file: Express.Multer.File) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        return this.leadsService.deleteByPhoneNumbers(file.buffer);
+    }
+
     // ── Admin: update a lead record's calling/tracking fields ─────────────────
     @Patch(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
