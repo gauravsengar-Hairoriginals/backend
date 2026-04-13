@@ -167,6 +167,16 @@ export class LeadsController {
         return this.leadsService.importFromLeadSquared(file.buffer, targetStatus);
     }
 
+    // ── Admin: import generic CSV (admin export format) ───────────────────────
+    @Post('import/generic-csv')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    @UseInterceptors(FileInterceptor('file'))
+    importGenericCsv(@UploadedFile() file: Express.Multer.File) {
+        if (!file) throw new BadRequestException('No file uploaded');
+        return this.leadsService.importFromGenericCsv(file.buffer);
+    }
+
     // ── Admin: delete leads by phone numbers from Excel ───────────────────────
     @Post('delete-by-phone-excel')
     @UseGuards(JwtAuthGuard, RolesGuard)

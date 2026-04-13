@@ -1747,4 +1747,193 @@ export class LeadsService {
         this.logger.log(`[LS-IMPORT] Done — created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors.length}`);
         return { created, updated, skipped, errors };
     }
+
+    // ── Generic CSV Import ────────────────────────────────────────────────────
+    /**
+     * Imports leads from the admin-exported CSV format:
+     * Name, Phone, Email, Visit Date & Time, Address, City, Product,
+     * Date, Time, Subject, Message, Type, Source, Campaign ID, Status, Created At, Updated At
+     *
+     * Deduplication logic (by phone, normalized to +91XXXXXXXXXX):
+     *   - If a lead already exists for that customer → upsert missing fields
+     *     (city, source, campaignId, product titles)
+     *   - If no lead exists → create a fresh lead + customer
+     */
+    async importFromGenericCsv(
+        fileBuffer: Buffer,
+    ): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const csvParse = require('csv-parse/sync');
+
+        // Decode buffer (handles UTF-8 BOM)
+        let csvText = fileBuffer.toString('utf-8');
+        if (csvText.charCodeAt(0) === 0xfeff) csvText = csvText.slice(1); // strip BOM
+
+        const rawRecords: Record<string, string>[] = csvParse.parse(csvText, {
+            columns: true,
+            skip_empty_lines: true,
+            trim: true,
+        });
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        const errors: string[] = [];
+
+        for (let rowNum = 0; rowNum < rawRecords.length; rowNum++) {
+            const row = rawRecords[rowNum];
+
+            // Skip completely empty rows (artifact of Excel exports)
+            const rawPhone = (row['Phone'] ?? '').trim();
+            if (!rawPhone) {
+                skipped++;
+                continue;
+            }
+
+            try {
+                const phone    = normalizePhone(rawPhone);
+                const name     = (row['Name'] ?? '').trim() || 'Unknown';
+                const email    = (row['Email'] ?? '').trim() || undefined;
+                const city     = (row['City'] ?? '').trim() || undefined;
+                const address  = (row['Address'] ?? '').trim() || undefined;
+                const source   = (row['Source'] ?? '').trim() || 'CSV Import';
+                const campaignId = (row['Campaign ID'] ?? '').trim() || undefined;
+                const productRaw = (row['Product'] ?? '').trim();
+                const type     = (row['Type'] ?? '').trim() || undefined; // "Try At Home", "Request A Call" etc.
+
+                // ── Derive lead category from Type / Source ────────────────
+                let leadCategory: string | undefined;
+                const typeLC = type?.toLowerCase() ?? '';
+                const srcLC  = source.toLowerCase();
+                if (typeLC.includes('home') || typeLC.includes('try at home')) leadCategory = 'HT';
+                else if (srcLC.includes('ec') || srcLC.includes('experience')) leadCategory = 'EC';
+                else if (srcLC.includes('popin')) leadCategory = 'POPIN';
+                else leadCategory = 'EC'; // default for website/form leads
+
+                // ── Parse product titles (pipe or comma separated) ─────────
+                const productTitles: string[] = productRaw
+                    ? productRaw.split(/[|,]/).map(p => p.trim()).filter(p => p && p !== 'No Product')
+                    : [];
+
+                // ── 1. Upsert Customer ─────────────────────────────────────
+                let customer = await this.customerRepo.findOne({ where: { phone } });
+                let customerChanged = false;
+
+                if (!customer) {
+                    const nameParts = name.split(' ');
+                    customer = this.customerRepo.create({
+                        firstName: nameParts[0],
+                        lastName: nameParts.slice(1).join(' ') || '',
+                        name,
+                        phone,
+                        city,
+                        email,
+                        addressLine1: address,
+                        tags: ['lead'],
+                        lastActivityPlatform: 'csv_import',
+                    });
+                    customer = await this.customerRepo.save(customer);
+                } else {
+                    // Fill any missing fields on the existing customer
+                    if (!customer.city && city) { customer.city = city; customerChanged = true; }
+                    if (!customer.email && email) { customer.email = email; customerChanged = true; }
+                    if (!customer.addressLine1 && address) { customer.addressLine1 = address; customerChanged = true; }
+                    if (customer.name === 'Unknown' && name !== 'Unknown') {
+                        customer.name = name;
+                        const np = name.split(' ');
+                        customer.firstName = np[0];
+                        customer.lastName = np.slice(1).join(' ') || '';
+                        customerChanged = true;
+                    }
+                    if (customerChanged) customer = await this.customerRepo.save(customer);
+                }
+
+                // ── 2. Duplicate check: find most recent open lead ─────────
+                const CLOSED = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
+                const existingLead = await this.leadRecordRepo.findOne({
+                    where: { customerId: customer.id },
+                    relations: ['leadProducts'],
+                    order: { createdAt: 'DESC' },
+                });
+
+                if (existingLead && !CLOSED.includes(existingLead.status)) {
+                    // ── UPDATE existing open lead with any missing fields ───
+                    let leadChanged = false;
+
+                    if (!existingLead.source && source) {
+                        existingLead.source = source;
+                        leadChanged = true;
+                    }
+                    if (!existingLead.campaignId && campaignId) {
+                        existingLead.campaignId = campaignId;
+                        leadChanged = true;
+                    }
+                    if (!existingLead.leadCategory && leadCategory) {
+                        existingLead.leadCategory = leadCategory;
+                        leadChanged = true;
+                    }
+
+                    // Add products that don't already exist on this lead
+                    if (productTitles.length > 0) {
+                        const existingTitles = new Set((existingLead.leadProducts ?? []).map(p => p.productTitle));
+                        const newProducts = productTitles
+                            .filter(t => !existingTitles.has(t))
+                            .map(t => {
+                                const lp = new LeadProduct();
+                                lp.leadRecordId = existingLead.id;
+                                lp.productTitle = t;
+                                lp.quantity = 1;
+                                return lp;
+                            });
+                        if (newProducts.length > 0) {
+                            await this.leadProductRepo.save(newProducts);
+                            leadChanged = true;
+                        }
+                    }
+
+                    if (leadChanged) {
+                        await this.leadRecordRepo.save(existingLead);
+                        updated++;
+                        this.logger.log(`[CSV-IMPORT] Updated lead ${existingLead.id} for phone ${phone}`);
+                    } else {
+                        skipped++;
+                        this.logger.log(`[CSV-IMPORT] No changes needed for phone ${phone} (lead ${existingLead.id})`);
+                    }
+                } else {
+                    // ── CREATE new lead ────────────────────────────────────
+                    const priorCount = await this.leadRecordRepo.count({ where: { customerId: customer.id } });
+                    const newLead = this.leadRecordRepo.create({
+                        customerId: customer.id,
+                        source,
+                        campaignId,
+                        leadCategory: this.categorisation.deriveLeadCategory(source, type, leadCategory),
+                        status: LeadStatus.NEW,
+                        isRevisit: priorCount > 0,
+                    });
+                    const savedLead = await this.leadRecordRepo.save(newLead);
+
+                    // Save products
+                    if (productTitles.length > 0) {
+                        const lps = productTitles.map(t => {
+                            const lp = new LeadProduct();
+                            lp.leadRecordId = savedLead.id;
+                            lp.productTitle = t;
+                            lp.quantity = 1;
+                            return lp;
+                        });
+                        await this.leadProductRepo.save(lps);
+                    }
+
+                    created++;
+                    this.logger.log(`[CSV-IMPORT] Created lead ${savedLead.id} for phone ${phone}`);
+                }
+            } catch (err: any) {
+                errors.push(`Row ${rowNum + 2}: ${err?.message ?? 'Unknown error'}`);
+                this.logger.error(`[CSV-IMPORT] Row ${rowNum + 2} failed: ${err?.message}`);
+            }
+        }
+
+        this.logger.log(`[CSV-IMPORT] Done — created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors.length}`);
+        return { created, updated, skipped, errors };
+    }
 }
