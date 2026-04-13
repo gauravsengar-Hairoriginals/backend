@@ -1765,15 +1765,28 @@ export class LeadsService {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const csvParse = require('csv-parse/sync');
 
-        // Decode buffer (handles UTF-8 BOM)
-        let csvText = fileBuffer.toString('utf-8');
-        if (csvText.charCodeAt(0) === 0xfeff) csvText = csvText.slice(1); // strip BOM
+        // Decode buffer — strip UTF-8 or UTF-16LE BOM if present
+        let csvText: string;
+        if (fileBuffer.length >= 2 && fileBuffer[0] === 0xff && fileBuffer[1] === 0xfe) {
+            csvText = fileBuffer.toString('utf16le');
+        } else {
+            csvText = fileBuffer.toString('utf-8');
+        }
+        // Strip UTF-8 BOM character (U+FEFF) if present at start
+        if (csvText.charCodeAt(0) === 0xfeff) csvText = csvText.slice(1);
 
         const rawRecords: Record<string, string>[] = csvParse.parse(csvText, {
             columns: true,
             skip_empty_lines: true,
             trim: true,
+            relax_column_count: true,  // tolerate rows with more/fewer columns
         });
+
+        // Log actual column names from first row to help diagnose mismatches
+        if (rawRecords.length > 0) {
+            const cols = Object.keys(rawRecords[0]);
+            this.logger.log(`[CSV-IMPORT] Detected columns: ${JSON.stringify(cols)}`);
+        }
 
         let created = 0;
         let updated = 0;
@@ -1781,25 +1794,35 @@ export class LeadsService {
         const errors: string[] = [];
 
         for (let rowNum = 0; rowNum < rawRecords.length; rowNum++) {
-            const row = rawRecords[rowNum];
+            const rawRow = rawRecords[rowNum];
+
+            // ── Normalize column names to lowercase (case-insensitive + BOM-safe) ──
+            const row: Record<string, string> = {};
+            for (const key of Object.keys(rawRow)) {
+                // Strip BOM and other invisible chars, then lowercase
+                const cleanKey = key.replace(/^\uFEFF/, '').trim().toLowerCase();
+                row[cleanKey] = rawRow[key];
+            }
+            // Helper to read a column value by original label (case-insensitive)
+            const get = (col: string): string => (row[col.toLowerCase()] ?? '').trim();
 
             // Skip completely empty rows (artifact of Excel exports)
-            const rawPhone = (row['Phone'] ?? '').trim();
+            const rawPhone = get('phone');
             if (!rawPhone) {
                 skipped++;
                 continue;
             }
 
             try {
-                const phone    = normalizePhone(rawPhone);
-                const name     = (row['Name'] ?? '').trim() || 'Unknown';
-                const email    = (row['Email'] ?? '').trim() || undefined;
-                const city     = (row['City'] ?? '').trim() || undefined;
-                const address  = (row['Address'] ?? '').trim() || undefined;
-                const source   = (row['Source'] ?? '').trim() || 'CSV Import';
-                const campaignId = (row['Campaign ID'] ?? '').trim() || undefined;
-                const productRaw = (row['Product'] ?? '').trim();
-                const type     = (row['Type'] ?? '').trim() || undefined; // "Try At Home", "Request A Call" etc.
+                const phone      = normalizePhone(rawPhone);
+                const name       = get('name') || 'Unknown';
+                const email      = get('email') || undefined;
+                const city       = get('city') || undefined;
+                const address    = get('address') || undefined;
+                const source     = get('source') || 'CSV Import';
+                const campaignId = get('campaign id') || undefined;
+                const productRaw = get('product');
+                const type       = get('type') || undefined; // "Try At Home", "Request A Call" etc.
 
                 // ── Derive lead category from Type / Source ────────────────
                 let leadCategory: string | undefined;
