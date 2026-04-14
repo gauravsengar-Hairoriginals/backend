@@ -658,12 +658,7 @@ export class LeadsService {
         });
         if (!lead) throw new NotFoundException('Lead not found');
 
-        if (
-            requestingUser?.role === UserRole.LEAD_CALLER &&
-            lead.assignedToId !== requestingUser.id
-        ) {
-            throw new BadRequestException('You can only update your own assigned leads');
-        }
+
 
         // ── Capture diffs for history ──────────────────────────────────────
         const historyEntries: Partial<LeadHistory>[] = [];
