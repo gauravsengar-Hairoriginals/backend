@@ -1837,7 +1837,7 @@ export class LeadsService {
                 if (typeLC.includes('home') || typeLC.includes('try at home') || srcLC.includes('home') || srcLC.includes('try at home')) leadCategory = 'HT';
                 else if (srcLC.includes('ec') || srcLC.includes('experience')) leadCategory = 'EC';
                 else if (srcLC.includes('popin')) leadCategory = 'POPIN';
-                else leadCategory = 'EC'; // default for website/form leads
+                else leadCategory = 'WEBSITE'; // default for website/form leads
 
                 // ── Parse product titles (pipe or comma separated) ─────────
                 const productTitles: string[] = productRaw
