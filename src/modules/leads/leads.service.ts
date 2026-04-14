@@ -925,6 +925,287 @@ export class LeadsService {
         }) as Promise<LeadRecord>;
     }
 
+    // ── Daily Aging Report (Last 7 Days) ─────────────────────────────────────
+    async getDailyAgingReport(): Promise<any> {
+        // Generate last 7 calendar days in IST (today inclusive, oldest first)
+        const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // UTC+5:30
+        const todayIST = new Date(Date.now() + IST_OFFSET_MS);
+        // Zero-out time portion in IST
+        const todayISTMidnight = new Date(
+            Date.UTC(todayIST.getUTCFullYear(), todayIST.getUTCMonth(), todayIST.getUTCDate())
+        );
+
+        // Build 7 ISO date strings: oldest first → today last
+        const days: string[] = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(todayISTMidnight.getTime() - i * 86400000);
+            const yyyy = d.getUTCFullYear();
+            const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd   = String(d.getUTCDate()).padStart(2, '0');
+            days.push(`${yyyy}-${mm}-${dd}`);
+        }
+
+        // fromDate = start of oldest day in UTC (shift IST midnight back by IST offset)
+        const fromDateUTC = new Date(todayISTMidnight.getTime() - 6 * 86400000 - IST_OFFSET_MS);
+        // toDate = end of today in UTC
+        const toDateUTC   = new Date(todayISTMidnight.getTime() + 86400000 - IST_OFFSET_MS - 1);
+
+        // Fetch all lead records created in the 7-day window with minimal columns
+        const rows: Array<{
+            lead_category: string | null;
+            status: string;
+            created_at: string;
+        }> = await this.dataSource.query(`
+            SELECT
+                lead_category,
+                status,
+                created_at
+            FROM lead_records
+            WHERE created_at >= $1
+              AND created_at <= $2
+        `, [fromDateUTC.toISOString(), toDateUTC.toISOString()]);
+
+        // ── Map each status to its display label (category-aware done at UI side)
+        // ── We keep raw status values here and do display mapping in frontend.
+        // ── But we also need category-specific "booked" status names.
+        //    We use normalised category labels.
+
+        const CATEGORY_ORDER = ['HT', 'EC', 'POPIN', 'WEBSITE', 'OTHER'];
+
+        // Status rows per category
+        const STATUS_ROWS: Record<string, string[]> = {
+            HT:      ['new', 'contacted', 'converted:Marked to HT', 'dropped'],
+            EC:      ['new', 'contacted', 'converted:Marked to EC', 'dropped'],
+            POPIN:   ['new', 'contacted', 'converted:Marked to VC', 'dropped'],
+            WEBSITE: ['new', 'contacted', 'converted:Marked to VC', 'dropped'],
+            OTHER:   ['new', 'contacted', 'dropped'],
+        };
+
+        // Helper: get normalised category
+        const normCat = (lc: string | null): string => {
+            const v = (lc ?? '').trim().toUpperCase();
+            if (['EC', 'HT', 'POPIN', 'WEBSITE'].includes(v)) return v;
+            return 'OTHER';
+        };
+
+        // Helper: get IST date string from a created_at timestamp
+        const toISTDate = (ts: string): string => {
+            const utc = new Date(ts).getTime();
+            const ist = new Date(utc + IST_OFFSET_MS);
+            const yyyy = ist.getUTCFullYear();
+            const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
+            const dd   = String(ist.getUTCDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        };
+
+        // Build a map: category → status → day → count
+        const grid: Record<string, Record<string, Record<string, number>>> = {};
+        for (const cat of CATEGORY_ORDER) {
+            grid[cat] = {};
+            for (const st of STATUS_ROWS[cat]) {
+                grid[cat][st] = {};
+                for (const day of days) grid[cat][st][day] = 0;
+            }
+        }
+
+        for (const r of rows) {
+            const cat    = normCat(r.lead_category);
+            const status = r.status || 'new';
+            const day    = toISTDate(r.created_at);
+
+            // Only tally if the status is tracked for this category
+            const tracked = STATUS_ROWS[cat];
+            if (!tracked) continue;
+
+            // Find exact status match in tracked list
+            let matchedStatus: string | null = null;
+            if (tracked.includes(status)) {
+                matchedStatus = status;
+            } else if (status === 'new' && tracked.includes('new')) {
+                matchedStatus = 'new';
+            } else if (status === 'contacted' && tracked.includes('contacted')) {
+                matchedStatus = 'contacted';
+            } else if (status === 'dropped' && tracked.includes('dropped')) {
+                matchedStatus = 'dropped';
+            } else if (status.startsWith('converted:') && tracked.some(t => t.startsWith('converted:'))) {
+                // Match the converted status relevant to THIS category
+                matchedStatus = tracked.find(t => t.startsWith('converted:')) ?? null;
+            }
+
+            if (!matchedStatus) continue;
+            if (!days.includes(day)) continue;
+            if (!grid[cat][matchedStatus]) continue;
+
+            grid[cat][matchedStatus][day]++;
+        }
+
+        // ── Status display labels
+        const STATUS_LABELS: Record<string, string> = {
+            'new':                      'Fresh',
+            'contacted':                'Contacted',
+            'converted:Marked to HT':  'Booked for HT',
+            'converted:Marked to EC':  'Booked for EC',
+            'converted:Marked to VC':  'Booked for VC',
+            'dropped':                  'Dropped',
+        };
+
+        // ── Assemble output
+        const categories = CATEGORY_ORDER.map(cat => {
+            const statusRows = STATUS_ROWS[cat].map(st => {
+                const dayCounts = days.map(day => grid[cat][st][day] ?? 0);
+                const rowTotal  = dayCounts.reduce((s, c) => s + c, 0);
+                return {
+                    status:    st,
+                    label:     STATUS_LABELS[st] ?? st,
+                    dayCounts,
+                    rowTotal,
+                };
+            });
+
+            // Day totals = sum across all tracked statuses
+            const dayTotals = days.map((_, di) =>
+                statusRows.reduce((s, r) => s + r.dayCounts[di], 0)
+            );
+            const grandTotal = dayTotals.reduce((s, c) => s + c, 0);
+
+            return { category: cat, statusRows, dayTotals, grandTotal };
+        }).filter(c => c.grandTotal > 0); // hide completely empty categories
+
+        return {
+            days,   // ['2026-04-08', ..., '2026-04-14']
+            today:  days[days.length - 1],
+            categories,
+        };
+    }
+
+    // ── Daily Caller Report (Last 7 Days) ────────────────────────────────────
+    async getDailyCallerReport(): Promise<any> {
+        const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+        const todayIST = new Date(Date.now() + IST_OFFSET_MS);
+        const todayISTMidnight = new Date(
+            Date.UTC(todayIST.getUTCFullYear(), todayIST.getUTCMonth(), todayIST.getUTCDate())
+        );
+
+        const days: string[] = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(todayISTMidnight.getTime() - i * 86400000);
+            const yyyy = d.getUTCFullYear();
+            const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd   = String(d.getUTCDate()).padStart(2, '0');
+            days.push(`${yyyy}-${mm}-${dd}`);
+        }
+
+        const fromDateUTC = new Date(todayISTMidnight.getTime() - 6 * 86400000 - IST_OFFSET_MS);
+        const toDateUTC   = new Date(todayISTMidnight.getTime() + 86400000 - IST_OFFSET_MS - 1);
+
+        // All statuses shown for each caller
+        const ALL_STATUSES = [
+            'new',
+            'contacted',
+            'converted:Marked to HT',
+            'converted:Marked to EC',
+            'converted:Marked to VC',
+            'dropped',
+        ];
+
+        const STATUS_LABELS: Record<string, string> = {
+            'new':                     'Fresh',
+            'contacted':               'Contacted',
+            'converted:Marked to HT':  'Booked for HT',
+            'converted:Marked to EC':  'Booked for EC',
+            'converted:Marked to VC':  'Booked for VC',
+            'dropped':                  'Dropped',
+        };
+
+        const rows: Array<{
+            assigned_to_id: string | null;
+            assigned_to_name: string | null;
+            status: string;
+            created_at: string;
+        }> = await this.dataSource.query(`
+            SELECT
+                assigned_to_id,
+                assigned_to_name,
+                status,
+                created_at
+            FROM lead_records
+            WHERE created_at >= $1
+              AND created_at <= $2
+        `, [fromDateUTC.toISOString(), toDateUTC.toISOString()]);
+
+        const toISTDate = (ts: string): string => {
+            const utc = new Date(ts).getTime();
+            const ist = new Date(utc + IST_OFFSET_MS);
+            const yyyy = ist.getUTCFullYear();
+            const mm   = String(ist.getUTCMonth() + 1).padStart(2, '0');
+            const dd   = String(ist.getUTCDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        };
+
+        // Build caller map: callerId → { name, grid }
+        // grid: status → day → count
+        const callerMap = new Map<string, {
+            callerId: string;
+            callerName: string;
+            grid: Record<string, Record<string, number>>;
+        }>();
+
+        const ensureCaller = (id: string, name: string) => {
+            if (!callerMap.has(id)) {
+                const grid: Record<string, Record<string, number>> = {};
+                for (const st of ALL_STATUSES) {
+                    grid[st] = {};
+                    for (const day of days) grid[st][day] = 0;
+                }
+                callerMap.set(id, { callerId: id, callerName: name, grid });
+            }
+            return callerMap.get(id)!;
+        };
+
+        for (const r of rows) {
+            const callerId   = r.assigned_to_id   ?? '__unassigned__';
+            const callerName = r.assigned_to_name  ?? 'Unassigned';
+            const status     = r.status || 'new';
+            const day        = toISTDate(r.created_at);
+
+            const entry = ensureCaller(callerId, callerName);
+
+            // Map status → tracked status
+            let matchedStatus: string | null = null;
+            if (ALL_STATUSES.includes(status)) {
+                matchedStatus = status;
+            } else if (status.startsWith('converted:')) {
+                // Any other converted status → best-effort match
+                matchedStatus = ALL_STATUSES.find(s => s.startsWith('converted:')) ?? null;
+            }
+
+            if (!matchedStatus || !days.includes(day)) continue;
+            entry.grid[matchedStatus][day]++;
+        }
+
+        // Assemble output — callers sorted by total descending (Unassigned last)
+        const callers = [...callerMap.values()]
+            .map(({ callerId, callerName, grid }) => {
+                const statusRows = ALL_STATUSES.map(st => {
+                    const dayCounts = days.map(day => grid[st][day] ?? 0);
+                    const rowTotal  = dayCounts.reduce((s, c) => s + c, 0);
+                    return { status: st, label: STATUS_LABELS[st] ?? st, dayCounts, rowTotal };
+                }).filter(r => r.rowTotal > 0); // hide empty status rows per caller
+
+                const dayTotals  = days.map((_, di) => statusRows.reduce((s, r) => s + r.dayCounts[di], 0));
+                const grandTotal = dayTotals.reduce((s, c) => s + c, 0);
+                return { callerId, callerName, statusRows, dayTotals, grandTotal };
+            })
+            .filter(c => c.grandTotal > 0)
+            .sort((a, b) => {
+                if (a.callerId === '__unassigned__') return 1;
+                if (b.callerId === '__unassigned__') return -1;
+                return b.grandTotal - a.grandTotal;
+            });
+
+        return { days, today: days[days.length - 1], callers };
+    }
+
     // ── Aging Dashboard ───────────────────────────────────────────────────
     async getAgingDashboard(): Promise<any> {
         const CATEGORIES = ['EC', 'HT', 'WEBSITE', 'POPIN', 'OTHER'];

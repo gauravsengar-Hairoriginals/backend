@@ -93,6 +93,22 @@ export class LeadsController {
         }, user);
     }
 
+    // ── Admin: daily aging report (last 7 days, per-category × per-day × per-status) ──
+    @Get('daily-aging-report')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    getDailyAgingReport() {
+        return this.leadsService.getDailyAgingReport();
+    }
+
+    // ── Admin: daily caller report (last 7 days, per-caller × per-day × per-status) ──
+    @Get('daily-caller-report')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+    getDailyCallerReport() {
+        return this.leadsService.getDailyCallerReport();
+    }
+
     // ── Admin: aging dashboard ────────────────────────────────────────────────
     @Get('aging-dashboard')
     @UseGuards(JwtAuthGuard, RolesGuard)
