@@ -37,7 +37,7 @@ export interface LeadsQuery {
     assignedTo?: string;
     leadCategory?: string;  // EC | HT | WEBSITE | POPIN
     // Tab filter
-    tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped';
+    tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'bookedEC' | 'bookedHT' | 'bookedVC' | 'dropped';
     // Deduplication: show only the latest lead per customer phone
     deduplicateByPhone?: boolean;
     // Priority filter
@@ -497,10 +497,10 @@ export class LeadsService {
             qb.andWhere("lr.createdAt >= NOW() - INTERVAL '1 day' * :agingDays", { agingDays: query.agingDays });
         }
 
-        // LEAD_CALLER only sees their own assigned leads
-        if (requestingUser?.role === UserRole.LEAD_CALLER) {
-            qb.where('lr.assigned_to_id = :uid', { uid: requestingUser.id });
-        } else {
+        // LEAD_CALLER only sees their own assigned leads, UNLESS performing a global search
+        if (requestingUser?.role === UserRole.LEAD_CALLER && !search) {
+            qb.andWhere('lr.assigned_to_id = :uid', { uid: requestingUser.id });
+        } else if (requestingUser?.role !== UserRole.LEAD_CALLER) {
             if (assignedToId) {
                 qb.andWhere('lr.assigned_to_id = :assignedToId', { assignedToId });
             }
@@ -569,8 +569,12 @@ export class LeadsService {
             } else if (tab === 'revisit') {
                 qb.andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses });
                 qb.andWhere('lr.is_revisit = true');
-            } else if (tab === 'converted') {
-                qb.andWhere('lr.status LIKE :conv', { conv: 'converted:%' });
+            } else if (tab === 'bookedEC') {
+                qb.andWhere('lr.status = :status', { status: 'converted:Marked to EC' });
+            } else if (tab === 'bookedHT') {
+                qb.andWhere('lr.status = :status', { status: 'converted:Marked to HT' });
+            } else if (tab === 'bookedVC') {
+                qb.andWhere('lr.status = :status', { status: 'converted:Marked to VC' });
             } else if (tab === 'dropped') {
                 qb.andWhere('lr.status = :dropped', { dropped: 'dropped' });
             } else if (tab === 'all') {
@@ -629,7 +633,7 @@ export class LeadsService {
         const today = new Date();
         today.setHours(23, 59, 59, 999);
 
-        const [all, fresh, reminder, revisit, converted, dropped] = await Promise.all([
+        const [all, fresh, reminder, revisit, bookedEC, bookedHT, bookedVC, dropped] = await Promise.all([
             qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).getCount(),
             qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).andWhere('lr.call1 IS NULL').getCount(),
             qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses })
@@ -637,11 +641,13 @@ export class LeadsService {
                 .andWhere('lr.next_action_date <= :today', { today })
                 .andWhere('lr.updated_at < lr.next_action_date').getCount(),
             qbBase().andWhere('lr.status NOT IN (:...closedStatuses)', { closedStatuses }).andWhere('lr.is_revisit = true').getCount(),
-            qbBase().andWhere('lr.status LIKE :conv', { conv: 'converted:%' }).getCount(),
+            qbBase().andWhere('lr.status = :status', { status: 'converted:Marked to EC' }).getCount(),
+            qbBase().andWhere('lr.status = :status', { status: 'converted:Marked to HT' }).getCount(),
+            qbBase().andWhere('lr.status = :status', { status: 'converted:Marked to VC' }).getCount(),
             qbBase().andWhere('lr.status = :dropped', { dropped: 'dropped' }).getCount(),
         ]);
 
-        return { all, fresh, reminder, revisit, converted, dropped };
+        return { all, fresh, reminder, revisit, bookedEC, bookedHT, bookedVC, dropped };
     }
 
     // ── Update (with history tracking) ────────────────────────────────────
@@ -1828,7 +1834,7 @@ export class LeadsService {
                 let leadCategory: string | undefined;
                 const typeLC = type?.toLowerCase() ?? '';
                 const srcLC  = source.toLowerCase();
-                if (typeLC.includes('home') || typeLC.includes('try at home')) leadCategory = 'HT';
+                if (typeLC.includes('home') || typeLC.includes('try at home') || srcLC.includes('home') || srcLC.includes('try at home')) leadCategory = 'HT';
                 else if (srcLC.includes('ec') || srcLC.includes('experience')) leadCategory = 'EC';
                 else if (srcLC.includes('popin')) leadCategory = 'POPIN';
                 else leadCategory = 'EC'; // default for website/form leads
@@ -1857,11 +1863,11 @@ export class LeadsService {
                     });
                     customer = await this.customerRepo.save(customer);
                 } else {
-                    // Fill any missing fields on the existing customer
-                    if (!customer.city && city) { customer.city = city; customerChanged = true; }
-                    if (!customer.email && email) { customer.email = email; customerChanged = true; }
-                    if (!customer.addressLine1 && address) { customer.addressLine1 = address; customerChanged = true; }
-                    if (customer.name === 'Unknown' && name !== 'Unknown') {
+                    // Update fields on the existing customer if provided in CSV
+                    if (city && customer.city !== city) { customer.city = city; customerChanged = true; }
+                    if (email && customer.email !== email) { customer.email = email; customerChanged = true; }
+                    if (address && customer.addressLine1 !== address) { customer.addressLine1 = address; customerChanged = true; }
+                    if (name && name !== 'Unknown' && customer.name !== name) {
                         customer.name = name;
                         const np = name.split(' ');
                         customer.firstName = np[0];
@@ -1880,18 +1886,18 @@ export class LeadsService {
                 });
 
                 if (existingLead && !CLOSED.includes(existingLead.status)) {
-                    // ── UPDATE existing open lead with any missing fields ───
+                    // ── UPDATE existing open lead with new CSV details ───
                     let leadChanged = false;
 
-                    if (!existingLead.source && source) {
+                    if (source && existingLead.source !== source) {
                         existingLead.source = source;
                         leadChanged = true;
                     }
-                    if (!existingLead.campaignId && campaignId) {
+                    if (campaignId && existingLead.campaignId !== campaignId) {
                         existingLead.campaignId = campaignId;
                         leadChanged = true;
                     }
-                    if (!existingLead.leadCategory && leadCategory) {
+                    if (leadCategory && existingLead.leadCategory !== leadCategory) {
                         existingLead.leadCategory = leadCategory;
                         leadChanged = true;
                     }

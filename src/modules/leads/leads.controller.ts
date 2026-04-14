@@ -72,7 +72,7 @@ export class LeadsController {
         @Query('campaign') campaign?: string,
         @Query('assignedTo') assignedTo?: string,
         @Query('leadCategory') leadCategory?: string,
-        @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'converted' | 'dropped',
+        @Query('tab') tab?: 'all' | 'fresh' | 'reminder' | 'revisit' | 'bookedEC' | 'bookedHT' | 'bookedVC' | 'dropped',
         @Query('deduplicateByPhone') deduplicateByPhone?: string,
         @Query('isHighPriority') isHighPriority?: string,
         @Query('isUnassigned') isUnassigned?: string,
