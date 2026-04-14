@@ -386,7 +386,7 @@ export class AdminService implements OnModuleInit {
                 AND EXISTS (
                     SELECT 1 FROM customers c_join
                     WHERE c_join.id::text = lr.customer_id::text
-                      AND c_join.phone LIKE CONCAT('%', o.customer_phone)
+                      AND RIGHT(REGEXP_REPLACE(c_join.phone, '\\D', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(o.customer_phone, '\\D', '', 'g'), 10)
                 )
             )
         `;
