@@ -47,6 +47,15 @@ export class ShopifyService {
     /**
      * Main handler for checkouts/create and checkouts/update events.
      * Maps the Shopify checkout payload to a lead and ingests it.
+     *
+     * Shopify checkout lifecycle:
+     *  - checkouts/create  → customer enters email (no phone yet); billing_address may be empty
+     *  - checkouts/update  → customer fills shipping form; phone is in shipping_address.phone
+     *
+     * Strategy:
+     *  - On checkouts/create: create lead with email only (if no phone)
+     *  - On checkouts/update: if lead already exists for this checkout_id, PATCH it with
+     *    the newly available phone/name so the agent dashboard can show the customer details
      */
     async handleAbandonedCart(
         body: any,
@@ -66,15 +75,32 @@ export class ShopifyService {
 
         // Extract fields
         const checkoutId = String(body.id);
-        const email = body.email || '';
-        const phone = this.normalizePhone(body.phone || body.billing_address?.phone || '');
-        const billingAddr = body.billing_address || {};
-        const name = billingAddr.name || body.customer?.first_name
-            ? [body.customer?.first_name, body.customer?.last_name].filter(Boolean).join(' ')
-            : billingAddr.name || '';
-        const city = billingAddr.city || '';
-        const pincode = billingAddr.zip || '';
-        const address = [billingAddr.address1, billingAddr.address2].filter(Boolean).join(', ');
+        const email      = body.email || '';
+
+        // Phone: Shopify populates in this order of availability:
+        //   1. shipping_address.phone (filled when customer completes shipping step)
+        //   2. billing_address.phone  (less common)
+        //   3. top-level body.phone   (rare)
+        const rawPhone = body.shipping_address?.phone
+            || body.billing_address?.phone
+            || body.phone
+            || '';
+        const phone = this.normalizePhone(rawPhone);
+
+        // Name: customer object is the most reliable source
+        const customerFirst = body.customer?.first_name || '';
+        const customerLast  = body.customer?.last_name  || '';
+        const shippingName  = body.shipping_address?.name || '';
+        const billingName   = body.billing_address?.name  || '';
+        // Fix: wrap ternary condition properly to avoid JS operator precedence bug
+        const name = (customerFirst || customerLast)
+            ? [customerFirst, customerLast].filter(Boolean).join(' ')
+            : (shippingName || billingName || '');
+
+        const shippingAddr = body.shipping_address || body.billing_address || {};
+        const city    = shippingAddr.city || '';
+        const pincode = shippingAddr.zip  || '';
+        const address = [shippingAddr.address1, shippingAddr.address2].filter(Boolean).join(', ');
 
         const lineItems: any[] = body.line_items ?? [];
         const preferredProducts = lineItems.map((i: any) => i.title || i.name).filter(Boolean);
@@ -87,48 +113,70 @@ export class ShopifyService {
             return { success: false, error: 'No contact info in checkout' };
         }
 
-        // Deduplicate: if a lead was already created for this checkout, skip
-        // We store checkout_id inside specificDetails — check via service
+        // Deduplicate: check if a lead was already created for this checkout_id
         const existing = await this.leadsService.findBySpecificDetail('checkout_id', checkoutId);
+
         if (existing) {
-            this.logger.log(`[SHOPIFY] Duplicate checkout ${checkoutId} — skipping`);
+            // On checkouts/update, the phone/name may now be available for the first time.
+            // Patch the existing lead's customer record so agents can see the contact details.
+            if (topic === 'checkouts/update' && (phone || name)) {
+                try {
+                    await this.leadsService.update(existing.id, {
+                        ...(phone ? { phone } : {}),
+                        ...(name && name !== 'Unknown' ? { name } : {}),
+                        ...(city ? { city } : {}),
+                        ...(address ? { address } : {}),
+                        ...(pincode ? { pincode } : {}),
+                    } as any, undefined as any);
+                    this.logger.log(
+                        `[SHOPIFY] Updated existing lead ${existing.id} for checkout ${checkoutId} ` +
+                        `with phone="${phone}" name="${name}"`,
+                    );
+                } catch (err: any) {
+                    this.logger.warn(`[SHOPIFY] Could not patch lead ${existing.id}: ${err.message}`);
+                }
+            } else {
+                this.logger.log(`[SHOPIFY] Duplicate checkout ${checkoutId} — skipping (leadId=${existing.id})`);
+            }
             return { success: true, leadId: existing.id, skipped: true };
         }
 
         try {
             const lead = await this.leadsService.create({
-                name: name || 'Unknown',
-                phone: phone || '',
+                name:   name || 'Unknown',
+                phone:  phone || email, // fall back to email as phone placeholder so record is created
                 city,
                 address,
                 pincode,
-                leadCategory: "WEBSITE",
-                source: 'shopify_abandoned_cart',
+                leadCategory: 'WEBSITE',
+                source:   'shopify_abandoned_cart',
                 pageType: topic === 'checkouts/create' ? 'abandoned_cart_create' : 'abandoned_cart_update',
                 preferredProducts: preferredProducts.length ? preferredProducts : undefined,
-                utm_source: utm.utm_source,
-                utm_medium: utm.utm_medium,
+                utm_source:   utm.utm_source,
+                utm_medium:   utm.utm_medium,
                 utm_campaign: utm.utm_campaign,
-                utm_term: utm.utm_term,
-                utm_content: utm.utm_content,
+                utm_term:     utm.utm_term,
+                utm_content:  utm.utm_content,
                 specificDetails: {
-                    checkout_id: checkoutId,
-                    email,                               // stored here since DTO has no email field
-                    cart_total: body.total_price,
-                    cart_currency: body.currency,
-                    line_items_count: lineItems.length,
+                    checkout_id:           checkoutId,
+                    email,                               // stored here since DTO has no top-level email field
+                    cart_total:            body.total_price,
+                    cart_currency:         body.currency,
+                    line_items_count:      lineItems.length,
                     abandoned_checkout_url: body.abandoned_checkout_url || '',
-                    landing_site: body.landing_site || '',
+                    landing_site:          body.landing_site || '',
+                    has_phone:             !!phone,
                 },
             });
 
-            this.logger.log(`[SHOPIFY] Lead created id=${lead.id} for checkout ${checkoutId} name="${name}" phone="${phone}"`);
+            this.logger.log(`[SHOPIFY] Lead created id=${lead.id} for checkout ${checkoutId} name="${name}" phone="${phone || '(email only)'}"`);
             return { success: true, leadId: lead.id };
         } catch (err: any) {
             this.logger.error(`[SHOPIFY] Failed to create lead for checkout ${checkoutId}: ${err.message}`);
             return { success: false, error: err.message };
         }
     }
+
 
     // ── Order Creation ──────────────────────────────────────────────────────
 
