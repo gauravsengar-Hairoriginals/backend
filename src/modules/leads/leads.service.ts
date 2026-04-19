@@ -310,6 +310,75 @@ export class LeadsService {
             .getOne();
     }
 
+    /**
+     * Checks if a customer with the given phone number already exists.
+     * Used by the "Add New Lead" modal to pre-populate form fields and show
+     * an existing-lead banner when the caller enters a known phone number.
+     *
+     * Returns:
+     *   { exists: false } — no customer found
+     *   { exists: true, customer, latestLead } — customer + most recent lead record
+     */
+    async checkByPhone(phone: string): Promise<{
+        exists: boolean;
+        customer?: {
+            id: string;
+            name: string;
+            phone: string;
+            city?: string;
+            notes?: string;
+            assignedToId?: string;
+            assignedToName?: string;
+        };
+        latestLead?: {
+            id: string;
+            source?: string;
+            leadCategory?: string;
+            status?: string;
+            createdAt: Date;
+            assignedToId?: string;
+            assignedToName?: string;
+        };
+    }> {
+        const normalized = normalizePhone(phone);
+        const customer = await this.customerRepo.findOne({
+            where: { phone: normalized },
+        });
+
+        if (!customer) {
+            return { exists: false };
+        }
+
+        // Fetch most recent lead for this customer
+        const latestLead = await this.leadRecordRepo.findOne({
+            where: { customerId: customer.id },
+            order: { createdAt: 'DESC' },
+        });
+
+        return {
+            exists: true,
+            customer: {
+                id: customer.id,
+                name: customer.name ?? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`.trim(),
+                phone: customer.phone,
+                city: customer.city ?? undefined,
+                notes: customer.notes ?? undefined,
+                assignedToId: customer.assignedToId ?? undefined,
+                assignedToName: customer.assignedToName ?? undefined,
+            },
+            latestLead: latestLead ? {
+                id: latestLead.id,
+                source: latestLead.source ?? undefined,
+                leadCategory: latestLead.leadCategory ?? undefined,
+                status: latestLead.status ?? undefined,
+                createdAt: latestLead.createdAt,
+                assignedToId: latestLead.assignedToId ?? undefined,
+                assignedToName: latestLead.assignedToName ?? undefined,
+            } : undefined,
+        };
+    }
+
+
     // ── Assignment Engine (central, public) ───────────────────────────────
     /**
      * Assign a lead to the best available caller — single source of truth.

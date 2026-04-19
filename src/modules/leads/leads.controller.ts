@@ -36,6 +36,15 @@ export class LeadsController {
         return this.leadsService.create(dto);
     }
 
+    // ── Check if phone already exists (for Add Lead modal pre-population) ────
+    @Get('check-phone')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.LEAD_CALLER)
+    checkPhone(@Query('phone') phone: string) {
+        if (!phone) throw new BadRequestException('phone query param is required');
+        return this.leadsService.checkByPhone(phone);
+    }
+
     // ── Get Tab Counts ────────────────────────────────────────────────────────
     @Get('counts')
     @UseGuards(JwtAuthGuard, RolesGuard)
