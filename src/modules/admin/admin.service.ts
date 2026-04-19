@@ -642,6 +642,7 @@ export class AdminService implements OnModuleInit {
 
     /**
      * Reassigns all leads for `customerId` to `assignedToId`.
+     * Also updates the canonical assignment on the customers table.
      * Returns the count of updated leads.
      */
     async consolidateLeads(customerId: string, assignedToId: string): Promise<{ updated: number }> {
@@ -651,12 +652,19 @@ export class AdminService implements OnModuleInit {
         });
         if (!caller) throw new NotFoundException(`Caller ${assignedToId} not found or is not a Lead Caller`);
 
+        // Mirror to all lead_records (denormalized copy)
         const result = await this.leadRecordRepo
             .createQueryBuilder()
             .update(LeadRecord)
             .set({ assignedToId, assignedToName: caller.name ?? '' } as any)
             .where('customer_id = :customerId', { customerId })
             .execute();
+
+        // Update the customer record (source of truth)
+        await this.customerRepo.update(customerId, {
+            assignedToId,
+            assignedToName: caller.name ?? '',
+        } as any);
 
         return { updated: result.affected ?? 0 };
     }

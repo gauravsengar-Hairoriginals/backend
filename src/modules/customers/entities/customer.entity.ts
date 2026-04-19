@@ -6,8 +6,11 @@ import {
     UpdateDateColumn,
     Index,
     OneToOne,
+    ManyToOne,
+    JoinColumn,
     Unique,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 import { CustomerProfile } from './customer-profile.entity';
 
 export enum CustomerGender {
@@ -183,6 +186,19 @@ export class Customer {
     // Custom metadata
     @Column({ type: 'jsonb', nullable: true })
     metadata: Record<string, any>;
+
+    // ── Caller Assignment (source of truth — mirrored to lead_records) ──
+    /** The caller currently responsible for this customer across ALL their leads. */
+    @Index()
+    @Column({ name: 'assigned_to_id', nullable: true })
+    assignedToId: string;
+
+    @Column({ name: 'assigned_to_name', nullable: true })
+    assignedToName: string;
+
+    @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL', eager: false })
+    @JoinColumn({ name: 'assigned_to_id' })
+    assignedTo: User;
 
     // ============================================
     // Linked Profiles for Deduplication Tracking

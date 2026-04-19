@@ -122,6 +122,38 @@ export class LeadsService {
         private readonly channelierService: ChannelierService,
     ) { }
 
+    // ── Customer-Level Assignment (single source of truth) ────────────────
+    /**
+     * Writes caller assignment to the customers table (source of truth) and
+     * mirrors it to ALL lead_records for that customer in one operation.
+     * Also updates users.last_assigned_at for round-robin fairness.
+     *
+     * Every code path that resolves a caller MUST call this instead of
+     * directly updating lead_records.assigned_to_id.
+     */
+    async _writeCustomerAssignment(customerId: string, caller: User): Promise<void> {
+        // 1. Stamp the customer record — this is the canonical assignment
+        await this.customerRepo.update(customerId, {
+            assignedToId:   caller.id,
+            assignedToName: caller.name ?? '',
+        } as any);
+
+        // 2. Mirror to ALL lead records for this customer
+        await this.leadRecordRepo
+            .createQueryBuilder()
+            .update(LeadRecord)
+            .set({ assignedToId: caller.id, assignedToName: caller.name ?? '' })
+            .where('customer_id = :customerId', { customerId })
+            .execute();
+
+        // 3. Update round-robin timestamp
+        await this.userRepo.update(caller.id, { lastAssignedAt: new Date() });
+
+        this.logger.log(
+            `[ASSIGN-CUSTOMER] Customer ${customerId} → "${caller.name}" (${caller.id}) — all leads mirrored`,
+        );
+    }
+
     // ── Create ────────────────────────────────────────────────────────────
     async create(dto: CreateLeadDto): Promise<LeadRecord> {
         return this.dataSource.transaction(async (em) => {
@@ -210,30 +242,24 @@ export class LeadsService {
                 leadRecord.isRevisit = true;
             }
 
-            // ── Sticky caller: re-use the caller from any prior lead for this customer ──
-            // If no explicit assignment was given via the DTO, look up the most recent
-            // lead that was assigned and reuse that caller (provided they are still active).
-            // This runs synchronously inside the transaction so the saved record and the
-            // API response already contain the correct assignedToId.
-            if (!dto.assignedToId && priorLeadCount > 0) {
-                const priorAssignedLead = await em.findOne(LeadRecord, {
-                    where: { customerId: customer.id, assignedToId: Not(IsNull()) },
-                    order: { createdAt: 'DESC' },
-                });
-                if (priorAssignedLead?.assignedToId) {
+            // ── Sticky caller: inherit assignment from the customer record ──
+            // If no explicit assignment was given via the DTO, read customers.assigned_to_id
+            // directly — no need to scan prior lead records any more.
+            if (!dto.assignedToId) {
+                const freshCustomer = await em.findOne(Customer, { where: { id: customer.id } });
+                if (freshCustomer?.assignedToId) {
                     const priorCaller = await em.findOne(User, {
-                        where: { id: priorAssignedLead.assignedToId, isActive: true },
+                        where: { id: freshCustomer.assignedToId, isActive: true },
                     });
                     if (priorCaller) {
                         leadRecord.assignedToId   = priorCaller.id;
                         leadRecord.assignedToName = priorCaller.name ?? '';
                         this.logger.log(
-                            `[CREATE] ♻️ Sticky caller pre-assigned: "${priorCaller.name}" ` +
-                            `from prior lead ${priorAssignedLead.id}`,
+                            `[CREATE] ♻️ Sticky caller from customer record: "${priorCaller.name}"`,
                         );
                     } else {
                         this.logger.warn(
-                            `[CREATE] Prior caller ${priorAssignedLead.assignedToId} is inactive ` +
+                            `[CREATE] Customer's prior caller ${freshCustomer.assignedToId} is inactive ` +
                             `— falling through to auto-assign round-robin`,
                         );
                     }
@@ -308,36 +334,32 @@ export class LeadsService {
 
         let assignedUserId: string | null = null;
 
-        // ── 0. Sticky caller — re-use the caller from any prior lead for this customer ──
-        //   "Same customer always goes to the same caller."
-        //   Only use a prior assignee if that user is still active.
+        // ── 0. Sticky caller — read from customers.assigned_to_id (source of truth) ──
+        //   A customer always belongs to the same caller across all their leads.
         if (lead.customerId) {
-            const priorLead = await this.leadRecordRepo.findOne({
-                where: {
-                    customerId: lead.customerId,
-                    assignedToId: Not(IsNull()),
-                },
-                order: { createdAt: 'DESC' },
+            const customer = await this.customerRepo.findOne({
+                where: { id: lead.customerId },
             });
-            if (priorLead?.assignedToId && priorLead.id !== leadId) {
-                const priorCaller = await this.userRepo.findOne({
-                    where: { id: priorLead.assignedToId, isActive: true },
+            if (customer?.assignedToId) {
+                const existingCaller = await this.userRepo.findOne({
+                    where: { id: customer.assignedToId, isActive: true },
                 });
-                if (priorCaller) {
-                    assignedUserId = priorCaller.id;
-                    this.logger.log(`[ASSIGN] ♻️ Sticky caller: re-using "${priorCaller.name}" from prior lead ${priorLead.id}`);
-                    
-                    if (priorCaller.callerCategory === CallerCategory.HT_CALLER && lead.leadCategory !== 'HT') {
+                if (existingCaller) {
+                    assignedUserId = existingCaller.id;
+                    this.logger.log(`[ASSIGN] ♻️ Customer-level sticky: "${existingCaller.name}" (customer ${lead.customerId})`);
+
+                    // Keep lead category consistent with the caller's specialisation
+                    if (existingCaller.callerCategory === CallerCategory.HT_CALLER && lead.leadCategory !== 'HT') {
                         lead.leadCategory = 'HT';
                         await this.leadRecordRepo.update(leadId, { leadCategory: 'HT' });
                         this.logger.log(`[ASSIGN] 🔄 Updated lead category to HT due to sticky caller`);
-                    } else if (priorCaller.callerCategory === CallerCategory.EC_CALLER && lead.leadCategory !== 'EC') {
+                    } else if (existingCaller.callerCategory === CallerCategory.EC_CALLER && lead.leadCategory !== 'EC') {
                         lead.leadCategory = 'EC';
                         await this.leadRecordRepo.update(leadId, { leadCategory: 'EC' });
                         this.logger.log(`[ASSIGN] 🔄 Updated lead category to EC due to sticky caller`);
                     }
                 } else {
-                    this.logger.warn(`[ASSIGN] Prior caller ${priorLead.assignedToId} is inactive — falling through to normal assignment`);
+                    this.logger.warn(`[ASSIGN] Customer's caller ${customer.assignedToId} is inactive — falling through to round-robin`);
                 }
             }
         }
@@ -445,15 +467,13 @@ export class LeadsService {
             if (callers.length > 0) assignedUserId = callers[0].id;
         }
 
-        // ── 4. Commit ─────────────────────────────────────────────────────
+        // ── 4. Commit — write to customer (source of truth) + mirror to all leads ─
         if (assignedUserId) {
             const assignee = await this.userRepo.findOne({ where: { id: assignedUserId } });
-            await this.leadRecordRepo.update(leadId, {
-                assignedToId: assignedUserId,
-                assignedToName: assignee?.name ?? '',
-            });
-            await this.userRepo.update(assignedUserId, { lastAssignedAt: new Date() });
-            this.logger.log(`[ASSIGN] ✅ Lead ${leadId} → "${assignee?.name}" (${assignedUserId})`);
+            if (assignee) {
+                await this._writeCustomerAssignment(lead.customerId, assignee);
+                this.logger.log(`[ASSIGN] ✅ Lead ${leadId} → "${assignee.name}" (${assignedUserId}) — customer + all sibling leads updated`);
+            }
         } else {
             this.logger.warn(`[ASSIGN] ❌ Lead ${leadId}: no caller found after all fallbacks`);
         }
@@ -907,11 +927,11 @@ export class LeadsService {
         if (!caller) throw new NotFoundException('Lead caller not found');
 
         const oldAssignee = lead.assignedToName || '';
-        lead.assignedToId = caller.id;
-        lead.assignedToName = caller.name;
-        const savedAssign = await this.leadRecordRepo.save(lead);
 
-        // Record assignment in history
+        // Write to customer (source of truth) + mirror to ALL sibling leads
+        await this._writeCustomerAssignment(lead.customerId, caller);
+
+        // Record assignment in history for this specific lead
         await this.leadHistoryRepo.save(this.leadHistoryRepo.create({
             leadRecordId: id,
             fieldName: 'Assigned To',
@@ -920,7 +940,7 @@ export class LeadsService {
         }));
 
         return this.leadRecordRepo.findOne({
-            where: { id: savedAssign.id },
+            where: { id },
             relations: ['customer', 'assignedTo', 'leadProducts', 'leadProducts.options'],
         }) as Promise<LeadRecord>;
     }
@@ -1591,10 +1611,13 @@ export class LeadsService {
         if (assignments.length === 0)
             return { assigned: 0, callers, breakdown: [], unroutable };
 
+        // Group assignments by customer so we write customer-level assignment once per customer
+        // (a customer may have multiple unassigned leads in this batch)
+        const customerCallerMap = new Map<string, User>();
         const historyEntries: Partial<LeadHistory>[] = [];
+
         for (const { lead, caller } of assignments) {
-            lead.assignedToId = caller.id;
-            lead.assignedToName = caller.name;
+            customerCallerMap.set(lead.customerId, caller);
             historyEntries.push({
                 leadRecordId: lead.id,
                 fieldName: 'Assigned To',
@@ -1603,7 +1626,11 @@ export class LeadsService {
             });
         }
 
-        await this.leadRecordRepo.save(assignments.map(a => a.lead));
+        // Write to customer (source of truth) + mirror to ALL sibling leads per customer
+        for (const [customerId, caller] of customerCallerMap.entries()) {
+            await this._writeCustomerAssignment(customerId, caller);
+        }
+
         if (historyEntries.length > 0)
             await this.leadHistoryRepo.save(historyEntries.map(e => this.leadHistoryRepo.create(e)));
 
@@ -1626,26 +1653,27 @@ export class LeadsService {
 
         if (leads.length === 0) throw new NotFoundException('No matching leads found');
 
-        const historyEntries: Partial<LeadHistory>[] = [];
+        // Record history for each lead in the selection
+        const historyEntries: Partial<LeadHistory>[] = leads.map(lead => ({
+            leadRecordId: lead.id,
+            fieldName: 'Assigned To',
+            oldValue: lead.assignedToName || '',
+            newValue: caller.name,
+        }));
 
-        for (const lead of leads) {
-            const oldAssignee = lead.assignedToName || '';
-            lead.assignedToId = caller.id;
-            lead.assignedToName = caller.name;
-            historyEntries.push({
-                leadRecordId: lead.id,
-                fieldName: 'Assigned To',
-                oldValue: oldAssignee,
-                newValue: caller.name,
-            });
+        // Propagate to customer (source of truth) + ALL sibling leads per unique customer
+        // _writeCustomerAssignment mirrors to ALL leads for a customer, so we deduplicate
+        // by customerId to avoid redundant DB writes.
+        const uniqueCustomerIds = [...new Set(leads.map(l => l.customerId))];
+        for (const customerId of uniqueCustomerIds) {
+            await this._writeCustomerAssignment(customerId, caller);
         }
 
-        await this.leadRecordRepo.save(leads);
         if (historyEntries.length > 0) {
             await this.leadHistoryRepo.save(historyEntries.map(e => this.leadHistoryRepo.create(e)));
         }
 
-        this.logger.log(`Bulk assigned ${leads.length} leads to ${caller.name} (${caller.id})`);
+        this.logger.log(`Bulk assigned ${leads.length} leads (${uniqueCustomerIds.length} customers) to ${caller.name} (${caller.id})`);
         return { updated: leads.length };
     }
 
@@ -1993,30 +2021,42 @@ export class LeadsService {
                 });
 
                 if (existingLead) {
-                    // Update existing lead
+                    // Update existing lead status and source
                     existingLead.status = targetStatus as LeadStatus;
-                    if (agentUser) {
-                        existingLead.assignedToId = agentUser.id;
-                        existingLead.assignedToName = agentUser.name;
-                    }
                     existingLead.source = source;
                     if (leadCategory) existingLead.leadCategory = leadCategory;
                     await this.leadRecordRepo.save(existingLead);
+
+                    // If an agent was resolved, propagate to customer + ALL sibling leads
+                    if (agentUser) {
+                        await this._writeCustomerAssignment(customer.id, agentUser);
+                    }
                     updated++;
                     this.logger.log(`[LS-IMPORT] Updated lead ${existingLead.id} for phone ${phone}`);
                 } else {
-                    // Create new lead
-                    const isRevisit = false; // new customer, not a revisit
+                    // Create new lead — agent will be inherited from customer record if available
+                    const freshCustomer = await this.customerRepo.findOne({ where: { id: customer.id } });
+                    const resolvedAgent = agentUser ?? (
+                        freshCustomer?.assignedToId
+                            ? await this.userRepo.findOne({ where: { id: freshCustomer.assignedToId, isActive: true } }) ?? undefined
+                            : undefined
+                    );
+
                     const lead = this.leadRecordRepo.create({
                         customerId: customer.id,
                         status: targetStatus as LeadStatus,
                         source,
-                        isRevisit,
+                        isRevisit: false,
                         leadCategory,
-                        assignedToId: agentUser?.id ?? (null as any),
-                        assignedToName: agentUser?.name ?? '',
+                        assignedToId: resolvedAgent?.id ?? (null as any),
+                        assignedToName: resolvedAgent?.name ?? '',
                     });
                     await this.leadRecordRepo.save(lead);
+
+                    // If agent was resolved (either from CSV or sticky), update customer record too
+                    if (resolvedAgent) {
+                        await this._writeCustomerAssignment(customer.id, resolvedAgent);
+                    }
                     created++;
                     this.logger.log(`[LS-IMPORT] Created lead for phone ${phone}`);
                 }
