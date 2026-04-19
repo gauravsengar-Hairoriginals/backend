@@ -96,6 +96,20 @@ export class LeadRecord {
     @Column({ name: 'specific_details', type: 'jsonb', nullable: true })
     specificDetails: Record<string, any>;
 
+    // ── Import Tracking ──────────────────────────────────────────────────────
+    /** LeadSquared Lead ID — used for deduplication during LSQ imports */
+    @Index()
+    @Column({ name: 'lsq_lead_id', nullable: true })
+    lsqLeadId: string;
+
+    /**
+     * The date the lead was originally created in the source system (LSQ / CSV).
+     * Stored as a plain ISO date string (YYYY-MM-DD) so deduplication can compare
+     * on date only, without time-zone drift.
+     */
+    @Column({ name: 'add_on_date', nullable: true })
+    addOnDate: string;
+
     // ── Lead Status ─────────────────────────────────────────────────────
     @Index()
     @Column({ type: 'varchar', default: LeadStatus.NEW })

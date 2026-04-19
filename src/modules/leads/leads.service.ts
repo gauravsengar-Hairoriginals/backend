@@ -1845,9 +1845,9 @@ export class LeadsService {
             errors,
         };
     }
-    // ── Bulk-Assign Qkonnect / Inbound IVR Leads ──────────────────────────
+
+    // ── Bulk-Assign Qkonnect / Inbound IVR Leads ───────────────────────────────
     async bulkAssignQkonnectLeads(): Promise<{ assigned: number; skipped: number; details: any[] }> {
-        // Find all IVR / qkonnect leads (assigned or not — re-assign to the last caller)
         const ivrSources = ['Inbound IVR', 'IVR', 'Qkonnect', 'inbound_ivr'];
         const leads = await this.leadRecordRepo.createQueryBuilder('lr')
             .where('lr.source IN (:...sources)', { sources: ivrSources })
@@ -1860,7 +1860,6 @@ export class LeadsService {
         const details: any[] = [];
 
         for (const lead of leads) {
-            // Find the most recent call log for the associated customer
             const recentLog = await this.callLogRepo.findOne({
                 where: { customerId: lead.customerId },
                 order: { createdAt: 'DESC' },
@@ -1873,11 +1872,7 @@ export class LeadsService {
             }
 
             let agentUser: User | null = null;
-
-            if (recentLog.agentId) {
-                agentUser = await this.userRepo.findOne({ where: { id: recentLog.agentId } });
-            }
-
+            if (recentLog.agentId) agentUser = await this.userRepo.findOne({ where: { id: recentLog.agentId } });
             if (!agentUser && recentLog.agentNumber) {
                 agentUser = await this.userRepo.findOne({
                     where: { phone: normalizePhone(recentLog.agentNumber), role: UserRole.LEAD_CALLER },
@@ -1896,14 +1891,26 @@ export class LeadsService {
             });
             assigned++;
             details.push({ leadId: lead.id, assignedTo: agentUser.name, agentId: agentUser.id });
-            this.logger.log(`[BULK-ASSIGN] Lead ${lead.id} → "${agentUser.name}"`);
         }
 
         this.logger.log(`[BULK-ASSIGN] Done: ${assigned} assigned, ${skipped} skipped`);
         return { assigned, skipped, details };
     }
 
-    // ── LeadSquared Excel Import ──────────────────────────────────────────────
+    // ── LeadSquared Excel Import ─────────────────────────────────────────────
+    /**
+     * Imports leads from a LeadSquared Excel export.
+     *
+     * Deduplication (in priority order):
+     *   1. LSQ Lead ID match    — if lsq_lead_id column is present and matches an
+     *                              existing lead_record.lsq_lead_id → skip (already imported).
+     *   2. Phone + Date match   — if a lead for this customer already exists with the
+     *                              same add_on_date → skip (same enquiry, different export).
+     *   3. Otherwise            — create a new lead record.
+     *
+     * The `add_on_date` column is MANDATORY. Rows without a parseable date are skipped.
+
+     */
     async importFromLeadSquared(
         fileBuffer: Buffer,
         targetStatus: string,
@@ -1932,7 +1939,7 @@ export class LeadsService {
         for (let i = 0; i < rows.length; i++) {
             const rawRow = rows[i];
             const rowNum = i + 2; // 1-indexed + header
-            
+
             // Fix Excel/CSV header issues: totally strip spaces, casing, and weird chars
             const row: Record<string, any> = {};
             for (const key of Object.keys(rawRow)) {
@@ -1944,7 +1951,7 @@ export class LeadsService {
             }
 
             try {
-                // ── 1. Phone normalization ────────────────────────────────────
+                // ── 1. Phone normalization ──────────────────────────────────────────
                 const rawPhone = String(row['customermobilenumber'] ?? row['mobile'] ?? '').trim();
                 if (!rawPhone) {
                     skipped++;
@@ -1953,24 +1960,47 @@ export class LeadsService {
                 }
                 const phone = normalizePhone(rawPhone);
 
-                // ── 2. Name ───────────────────────────────────────────────────
-                const firstName = String(row['customerfirstname'] ?? row['firstname'] ?? '').trim();
-                const lastName = String(row['customerlastname'] ?? row['lastname'] ?? '').trim();
-                const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+                // ── 2. Add-on Date (MANDATORY) ──────────────────────────────────────
+                // Accepted column names: 'addondate', 'createdon', 'date', 'createdat'
+                const rawDate = String(
+                    row['addondate'] ?? row['createdon'] ?? row['createdat'] ?? row['date'] ?? ''
+                ).trim();
+                if (!rawDate) {
+                    skipped++;
+                    errors.push(`Row ${rowNum}: skipped — 'Add On Date' column is mandatory but missing or empty`);
+                    continue;
+                }
+                // Parse to a plain YYYY-MM-DD string (handles Excel serial dates & ISO strings)
+                const addOnDate = this.parseDateToIso(rawDate);
+                if (!addOnDate) {
+                    skipped++;
+                    errors.push(`Row ${rowNum}: skipped — could not parse date '${rawDate}'`);
+                    continue;
+                }
 
-                // ── 3. Source ─────────────────────────────────────────────────
+                // ── 3. LSQ Lead ID (optional, used for dedup) ────────────────────
+                const lsqLeadId = String(
+                    row['leadid'] ?? row['id'] ?? row['lsqleadid'] ?? row['lsqid'] ?? ''
+                ).trim() || undefined;
+
+                // ── 4. Name ─────────────────────────────────────────────────────
+                const firstName = String(row['customerfirstname'] ?? row['firstname'] ?? '').trim();
+                const lastName  = String(row['customerlastname']  ?? row['lastname']  ?? '').trim();
+                const fullName  = [firstName, lastName].filter(Boolean).join(' ') || 'Unknown';
+
+                // ── 5. Source ───────────────────────────────────────────────────
                 const source = String(row['leadsource'] ?? row['source'] ?? 'LeadSquared').trim();
 
-                // ── 4. Agent lookup ───────────────────────────────────────────
+                // ── 6. Agent lookup ─────────────────────────────────────────────
                 let agentUser: User | undefined;
                 const agentPhone = String(
-                    row['agentmobilenumber'] ?? 
-                    row['agentnumber'] ?? 
-                    row['agentphone'] ?? 
-                    row['agent'] ?? 
-                    row['ownerphone'] ?? 
-                    row['ownermobilenumber'] ?? 
-                    row['owner'] ?? 
+                    row['agentmobilenumber'] ??
+                    row['agentnumber'] ??
+                    row['agentphone'] ??
+                    row['agent'] ??
+                    row['ownerphone'] ??
+                    row['ownermobilenumber'] ??
+                    row['owner'] ??
                     ''
                 ).trim();
 
@@ -1978,35 +2008,19 @@ export class LeadsService {
 
                 if (agentPhone) {
                     const normPhone = normalizePhone(agentPhone);
-                    this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: Searching DB for normalized phone = '${normPhone}'`);
                     agentUser = userByPhone.get(normPhone);
-                    this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: Search result = ${agentUser ? `SUCCESS (User ID: ${agentUser.id}, Name: ${agentUser.name})` : 'FAILED (Not Found)'}`);
+                    this.logger.log(`[LS-IMPORT-DEBUG] Row ${rowNum}: agent = ${agentUser ? agentUser.name : 'NOT FOUND'}`);
                 }
 
-                // ✨ Diagnostic Error for the UI: ✨
                 if (!agentUser) {
-                    if (!agentPhone) {
-                        errors.push(`Row ${rowNum}: No Agent Phone found in columns (or column missing)`);
-                    } else {
-                        errors.push(`Row ${rowNum}: Agent not found in system for Phone: '${agentPhone}' (normalized: ${normalizePhone(agentPhone)})`);
-                    }
+                    errors.push(
+                        agentPhone
+                            ? `Row ${rowNum}: Agent not found for phone '${agentPhone}'`
+                            : `Row ${rowNum}: No agent phone column found`,
+                    );
                 }
 
-                // ── 5. Customer find-or-create ────────────────────────────────
-                let customer = await this.customerRepo.findOne({ where: { phone } });
-                if (!customer) {
-                    customer = this.customerRepo.create({ name: fullName, phone });
-                    customer = await this.customerRepo.save(customer);
-                } else if (customer.name === 'Unknown' || !customer.name) {
-                    customer.name = fullName;
-                    customer = await this.customerRepo.save(customer);
-                } else {
-                    // Update name if we have a better value
-                    customer.name = fullName;
-                    customer = await this.customerRepo.save(customer);
-                }
-
-                // ── 6. Category Mapping ───────────────────────────────────────
+                // ── 7. Category ───────────────────────────────────────────────
                 const rawCategory = String(row['category'] ?? '').trim().toLowerCase();
                 let leadCategory: string | undefined;
                 if (rawCategory === 'home trial' || rawCategory === 'ht') leadCategory = 'HT';
@@ -2014,52 +2028,78 @@ export class LeadsService {
                 else if (rawCategory === 'website') leadCategory = 'WEBSITE';
                 else if (rawCategory === 'ec' || rawCategory === 'experience center') leadCategory = 'EC';
 
-                // ── 7. Lead find-or-create ────────────────────────────────────
-                const existingLead = await this.leadRecordRepo.findOne({
-                    where: { customerId: customer.id },
-                    order: { createdAt: 'DESC' },
-                });
-
-                if (existingLead) {
-                    // Update existing lead status and source
-                    existingLead.status = targetStatus as LeadStatus;
-                    existingLead.source = source;
-                    if (leadCategory) existingLead.leadCategory = leadCategory;
-                    await this.leadRecordRepo.save(existingLead);
-
-                    // If an agent was resolved, propagate to customer + ALL sibling leads
-                    if (agentUser) {
-                        await this._writeCustomerAssignment(customer.id, agentUser);
-                    }
-                    updated++;
-                    this.logger.log(`[LS-IMPORT] Updated lead ${existingLead.id} for phone ${phone}`);
+                // ── 8. Customer find-or-create ───────────────────────────────────
+                let customer = await this.customerRepo.findOne({ where: { phone } });
+                if (!customer) {
+                    customer = this.customerRepo.create({ name: fullName, phone });
+                    customer = await this.customerRepo.save(customer);
                 } else {
-                    // Create new lead — agent will be inherited from customer record if available
-                    const freshCustomer = await this.customerRepo.findOne({ where: { id: customer.id } });
-                    const resolvedAgent = agentUser ?? (
-                        freshCustomer?.assignedToId
-                            ? await this.userRepo.findOne({ where: { id: freshCustomer.assignedToId, isActive: true } }) ?? undefined
-                            : undefined
-                    );
-
-                    const lead = this.leadRecordRepo.create({
-                        customerId: customer.id,
-                        status: targetStatus as LeadStatus,
-                        source,
-                        isRevisit: false,
-                        leadCategory,
-                        assignedToId: resolvedAgent?.id ?? (null as any),
-                        assignedToName: resolvedAgent?.name ?? '',
-                    });
-                    await this.leadRecordRepo.save(lead);
-
-                    // If agent was resolved (either from CSV or sticky), update customer record too
-                    if (resolvedAgent) {
-                        await this._writeCustomerAssignment(customer.id, resolvedAgent);
-                    }
-                    created++;
-                    this.logger.log(`[LS-IMPORT] Created lead for phone ${phone}`);
+                    customer.name = fullName;
+                    customer = await this.customerRepo.save(customer);
                 }
+
+                // ── 9. Deduplication ──────────────────────────────────────────────
+                // Priority 1: exact LSQ Lead ID match
+                if (lsqLeadId) {
+                    const byLsqId = await this.leadRecordRepo.findOne({
+                        where: { lsqLeadId },
+                    });
+                    if (byLsqId) {
+                        // Stamp lsqLeadId if the existing record somehow lacks it
+                        if (!byLsqId.lsqLeadId) {
+                            await this.leadRecordRepo.update(byLsqId.id, { lsqLeadId });
+                        }
+                        skipped++;
+                        this.logger.log(`[LS-IMPORT] Row ${rowNum}: skipped — lsqLeadId '${lsqLeadId}' already exists (lead=${byLsqId.id})`);
+                        continue;
+                    }
+                }
+
+                // Priority 2: same phone + same add_on_date
+                const byPhoneDate = await this.leadRecordRepo
+                    .createQueryBuilder('lr')
+                    .innerJoin('lr.customer', 'c')
+                    .where('c.phone = :phone', { phone })
+                    .andWhere('lr.add_on_date = :addOnDate', { addOnDate })
+                    .getOne();
+
+                if (byPhoneDate) {
+                    // Stamp lsqLeadId onto the existing record if we now have it
+                    if (lsqLeadId && !byPhoneDate.lsqLeadId) {
+                        await this.leadRecordRepo.update(byPhoneDate.id, { lsqLeadId });
+                    }
+                    skipped++;
+                    this.logger.log(`[LS-IMPORT] Row ${rowNum}: skipped — phone+date duplicate (lead=${byPhoneDate.id})`);
+                    continue;
+                }
+
+                // ── 10. Create new lead record ───────────────────────────────────
+                const freshCustomer = await this.customerRepo.findOne({ where: { id: customer.id } });
+                const resolvedAgent = agentUser ?? (
+                    freshCustomer?.assignedToId
+                        ? await this.userRepo.findOne({ where: { id: freshCustomer.assignedToId, isActive: true } }) ?? undefined
+                        : undefined
+                );
+
+                const lead = this.leadRecordRepo.create({
+                    customerId: customer.id,
+                    status: targetStatus as LeadStatus,
+                    source,
+                    isRevisit: false,
+                    leadCategory,
+                    lsqLeadId,
+                    addOnDate,
+                    assignedToId:   resolvedAgent?.id   ?? (null as any),
+                    assignedToName: resolvedAgent?.name ?? '',
+                });
+                await this.leadRecordRepo.save(lead);
+
+                if (resolvedAgent) {
+                    await this._writeCustomerAssignment(customer.id, resolvedAgent);
+                }
+                created++;
+                this.logger.log(`[LS-IMPORT] Row ${rowNum}: created lead for phone ${phone} date=${addOnDate}`);
+
             } catch (err: any) {
                 errors.push(`Row ${rowNum}: ${err?.message ?? 'Unknown error'}`);
                 this.logger.error(`[LS-IMPORT] Row ${rowNum} failed: ${err?.message}`);
@@ -2070,16 +2110,47 @@ export class LeadsService {
         return { created, updated, skipped, errors };
     }
 
+    /** Parse any date string or Excel serial number into a YYYY-MM-DD ISO string. Returns null if unparseable. */
+    private parseDateToIso(raw: string): string | null {
+        if (!raw) return null;
+
+        // Excel serial number (a plain integer like 45678)
+        if (/^\d{5}$/.test(raw.trim())) {
+            const XLSX = require('xlsx');
+            const parsed: any = XLSX.SSF.parse_date_code(Number(raw.trim()));
+            if (parsed && parsed.y) {
+                const y = parsed.y;
+                const m = String(parsed.m).padStart(2, '0');
+                const d = String(parsed.d).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+        }
+
+        // ISO / standard date string — take only the date part
+        const d = new Date(raw.trim());
+        if (!isNaN(d.getTime())) {
+            return d.toISOString().slice(0, 10);
+        }
+
+        // DD/MM/YYYY or DD-MM-YYYY
+        const dmy = raw.trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+        if (dmy) {
+            return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+        }
+
+        return null;
+    }
+
     // ── Generic CSV Import ────────────────────────────────────────────────────
     /**
-     * Imports leads from the admin-exported CSV format:
-     * Name, Phone, Email, Visit Date & Time, Address, City, Product,
-     * Date, Time, Subject, Message, Type, Source, Campaign ID, Status, Created At, Updated At
+     * Imports leads from the admin-exported CSV format.
      *
-     * Deduplication logic (by phone, normalized to +91XXXXXXXXXX):
-     *   - If a lead already exists for that customer → upsert missing fields
-     *     (city, source, campaignId, product titles)
-     *   - If no lead exists → create a fresh lead + customer
+     * Deduplication (by phone + add_on_date):
+     *   - If a lead already exists for this customer on the SAME date → skip.
+     *   - Otherwise → create a new lead (phone alone is NOT enough to skip).
+     *
+     * The `date` (or `created at`) column is MANDATORY. Rows without a parseable
+     * date are skipped with an error message returned to the UI.
      */
     async importFromGenericCsv(
         fileBuffer: Buffer,
@@ -2094,17 +2165,15 @@ export class LeadsService {
         } else {
             csvText = fileBuffer.toString('utf-8');
         }
-        // Strip UTF-8 BOM character (U+FEFF) if present at start
         if (csvText.charCodeAt(0) === 0xfeff) csvText = csvText.slice(1);
 
         const rawRecords: Record<string, string>[] = csvParse.parse(csvText, {
             columns: true,
             skip_empty_lines: true,
             trim: true,
-            relax_column_count: true,  // tolerate rows with more/fewer columns
+            relax_column_count: true,
         });
 
-        // Log actual column names from first row to help diagnose mismatches
         if (rawRecords.length > 0) {
             const cols = Object.keys(rawRecords[0]);
             this.logger.log(`[CSV-IMPORT] Detected columns: ${JSON.stringify(cols)}`);
@@ -2118,49 +2187,59 @@ export class LeadsService {
         for (let rowNum = 0; rowNum < rawRecords.length; rowNum++) {
             const rawRow = rawRecords[rowNum];
 
-            // ── Normalize column names to lowercase (case-insensitive + BOM-safe) ──
+            // Normalize column names (case-insensitive + BOM-safe)
             const row: Record<string, string> = {};
             for (const key of Object.keys(rawRow)) {
-                // Strip BOM and other invisible chars, then lowercase
                 const cleanKey = key.replace(/^\uFEFF/, '').trim().toLowerCase();
                 row[cleanKey] = rawRow[key];
             }
-            // Helper to read a column value by original label (case-insensitive)
             const get = (col: string): string => (row[col.toLowerCase()] ?? '').trim();
 
-            // Skip completely empty rows (artifact of Excel exports)
+            // Skip completely empty rows
             const rawPhone = get('phone');
-            if (!rawPhone) {
-                skipped++;
-                continue;
-            }
+            if (!rawPhone) { skipped++; continue; }
 
             try {
                 const phone      = normalizePhone(rawPhone);
                 const name       = get('name') || 'Unknown';
                 const email      = get('email') || undefined;
-                const city       = get('city') || undefined;
+                const city       = get('city')  || undefined;
                 const address    = get('address') || undefined;
                 const source     = get('source') || 'CSV Import';
                 const campaignId = get('campaign id') || undefined;
                 const productRaw = get('product');
-                const type       = get('type') || undefined; // "Try At Home", "Request A Call" etc.
+                const type       = get('type') || undefined;
 
-                // ── Derive lead category from Type / Source ────────────────
+                // ── Add-on Date (MANDATORY) ───────────────────────────────────
+                // Accept 'date', 'created at', 'createdat', or 'add on date'
+                const rawDate = get('date') || get('created at') || get('createdat') || get('add on date');
+                if (!rawDate) {
+                    skipped++;
+                    errors.push(`Row ${rowNum + 2}: skipped — 'Date' column is mandatory but missing or empty`);
+                    continue;
+                }
+                const addOnDate = this.parseDateToIso(rawDate);
+                if (!addOnDate) {
+                    skipped++;
+                    errors.push(`Row ${rowNum + 2}: skipped — could not parse date '${rawDate}'`);
+                    continue;
+                }
+
+                // ── Derive lead category ──────────────────────────────────────
                 let leadCategory: string | undefined;
-                const typeLC = type?.toLowerCase() ?? '';
+                const typeLC = (type ?? '').toLowerCase();
                 const srcLC  = source.toLowerCase();
                 if (typeLC.includes('home') || typeLC.includes('try at home') || srcLC.includes('home') || srcLC.includes('try at home')) leadCategory = 'HT';
                 else if (srcLC.includes('ec') || srcLC.includes('experience')) leadCategory = 'EC';
                 else if (srcLC.includes('popin')) leadCategory = 'POPIN';
-                else leadCategory = 'WEBSITE'; // default for website/form leads
+                else leadCategory = 'WEBSITE';
 
-                // ── Parse product titles (pipe or comma separated) ─────────
+                // ── Parse product titles ──────────────────────────────────────
                 const productTitles: string[] = productRaw
                     ? productRaw.split(/[|,]/).map(p => p.trim()).filter(p => p && p !== 'No Product')
                     : [];
 
-                // ── 1. Upsert Customer ─────────────────────────────────────
+                // ── Upsert Customer ───────────────────────────────────────────
                 let customer = await this.customerRepo.findOne({ where: { phone } });
                 let customerChanged = false;
 
@@ -2169,116 +2248,73 @@ export class LeadsService {
                     customer = this.customerRepo.create({
                         firstName: nameParts[0],
                         lastName: nameParts.slice(1).join(' ') || '',
-                        name,
-                        phone,
-                        city,
-                        email,
+                        name, phone, city, email,
                         addressLine1: address,
                         tags: ['lead'],
                         lastActivityPlatform: 'csv_import',
                     });
                     customer = await this.customerRepo.save(customer);
                 } else {
-                    // Update fields on the existing customer if provided in CSV
-                    if (city && customer.city !== city) { customer.city = city; customerChanged = true; }
-                    if (email && customer.email !== email) { customer.email = email; customerChanged = true; }
+                    if (city    && customer.city         !== city)    { customer.city         = city;    customerChanged = true; }
+                    if (email   && customer.email        !== email)   { customer.email        = email;   customerChanged = true; }
                     if (address && customer.addressLine1 !== address) { customer.addressLine1 = address; customerChanged = true; }
                     if (name && name !== 'Unknown' && customer.name !== name) {
                         customer.name = name;
                         const np = name.split(' ');
                         customer.firstName = np[0];
-                        customer.lastName = np.slice(1).join(' ') || '';
+                        customer.lastName  = np.slice(1).join(' ') || '';
                         customerChanged = true;
                     }
                     if (customerChanged) customer = await this.customerRepo.save(customer);
                 }
 
-                // ── 2. Duplicate check: find most recent open lead ─────────
-                const CLOSED = ['dropped', 'converted:Marked to EC', 'converted:Marked to HT', 'converted:Marked to VC'];
-                const existingLead = await this.leadRecordRepo.findOne({
-                    where: { customerId: customer.id },
-                    relations: ['leadProducts'],
-                    order: { createdAt: 'DESC' },
-                });
+                // ── Deduplication: phone + add_on_date ────────────────────────
+                // If a lead already exists for this customer on this exact date → skip.
+                const duplicate = await this.leadRecordRepo
+                    .createQueryBuilder('lr')
+                    .where('lr.customer_id = :cid', { cid: customer.id })
+                    .andWhere('lr.add_on_date = :addOnDate', { addOnDate })
+                    .getOne();
 
-                if (existingLead && !CLOSED.includes(existingLead.status)) {
-                    // ── UPDATE existing open lead with new CSV details ───
-                    let leadChanged = false;
-
-                    if (source && existingLead.source !== source) {
-                        existingLead.source = source;
-                        leadChanged = true;
-                    }
-                    if (campaignId && existingLead.campaignId !== campaignId) {
-                        existingLead.campaignId = campaignId;
-                        leadChanged = true;
-                    }
-                    if (leadCategory && existingLead.leadCategory !== leadCategory) {
-                        existingLead.leadCategory = leadCategory;
-                        leadChanged = true;
-                    }
-
-                    // Add products that don't already exist on this lead
-                    if (productTitles.length > 0) {
-                        const existingTitles = new Set((existingLead.leadProducts ?? []).map(p => p.productTitle));
-                        const newProducts = productTitles
-                            .filter(t => !existingTitles.has(t))
-                            .map(t => {
-                                const lp = new LeadProduct();
-                                lp.leadRecordId = existingLead.id;
-                                lp.productTitle = t;
-                                lp.quantity = 1;
-                                return lp;
-                            });
-                        if (newProducts.length > 0) {
-                            await this.leadProductRepo.save(newProducts);
-                            leadChanged = true;
-                        }
-                    }
-
-                    if (leadChanged) {
-                        await this.leadRecordRepo.save(existingLead);
-                        updated++;
-                        this.logger.log(`[CSV-IMPORT] Updated lead ${existingLead.id} for phone ${phone}`);
-                    } else {
-                        skipped++;
-                        this.logger.log(`[CSV-IMPORT] No changes needed for phone ${phone} (lead ${existingLead.id})`);
-                    }
-                } else {
-                    // ── CREATE new lead ────────────────────────────────────
-                    const priorCount = await this.leadRecordRepo.count({ where: { customerId: customer.id } });
-                    const newLead = this.leadRecordRepo.create({
-                        customerId: customer.id,
-                        source,
-                        campaignId,
-                        leadCategory: this.categorisation.deriveLeadCategory(source, type, leadCategory),
-                        status: LeadStatus.NEW,
-                        isRevisit: priorCount > 0,
-                    });
-                    const savedLead = await this.leadRecordRepo.save(newLead);
-
-                    // Save products
-                    if (productTitles.length > 0) {
-                        const lps = productTitles.map(t => {
-                            const lp = new LeadProduct();
-                            lp.leadRecordId = savedLead.id;
-                            lp.productTitle = t;
-                            lp.quantity = 1;
-                            return lp;
-                        });
-                        await this.leadProductRepo.save(lps);
-                    }
-
-                    created++;
-                    this.logger.log(`[CSV-IMPORT] Created lead ${savedLead.id} for phone ${phone}`);
+                if (duplicate) {
+                    skipped++;
+                    this.logger.log(`[CSV-IMPORT] Row ${rowNum + 2}: skipped — phone+date duplicate (lead=${duplicate.id})`);
+                    continue;
                 }
+
+                // ── Create new lead ───────────────────────────────────────────
+                const priorCount = await this.leadRecordRepo.count({ where: { customerId: customer.id } });
+                const newLead = this.leadRecordRepo.create({
+                    customerId: customer.id,
+                    source,
+                    campaignId,
+                    leadCategory: this.categorisation.deriveLeadCategory(source, type, leadCategory),
+                    status: LeadStatus.NEW,
+                    isRevisit: priorCount > 0,
+                    addOnDate,
+                });
+                const savedLead = await this.leadRecordRepo.save(newLead);
+
+                if (productTitles.length > 0) {
+                    const lps = productTitles.map(t => {
+                        const lp = new LeadProduct();
+                        lp.leadRecordId = savedLead.id;
+                        lp.productTitle = t;
+                        lp.quantity = 1;
+                        return lp;
+                    });
+                    await this.leadProductRepo.save(lps);
+                }
+
+                created++;
+                this.logger.log(`[CSV-IMPORT] Created lead ${savedLead.id} for phone ${phone} date=${addOnDate}`);
+
             } catch (err: any) {
                 errors.push(`Row ${rowNum + 2}: ${err?.message ?? 'Unknown error'}`);
                 this.logger.error(`[CSV-IMPORT] Row ${rowNum + 2} failed: ${err?.message}`);
             }
         }
 
-        this.logger.log(`[CSV-IMPORT] Done — created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors.length}`);
         return { created, updated, skipped, errors };
     }
 }
