@@ -145,7 +145,15 @@ export class CallLogsService {
             'converted:Marked to HT',
             'converted:Marked to VC',
         ];
-        const priorCountOb = await this.leadRepo.count({ where: { customerId: customer.id } });
+        // Count only non-outbound prior leads for isRevisit logic.
+        // A customer who was ONLY ever reached via outbound callback should NOT be
+        // flagged as a revisit just because the system auto-logged a previous call.
+        const priorNonOutboundCount = await this.leadRepo
+            .createQueryBuilder('lr')
+            .where('lr.customer_id = :cid', { cid: customer.id })
+            .andWhere("lr.source != 'Outbound Call'")
+            .getCount();
+
         let lead = await this.leadRepo
             .createQueryBuilder('lr')
             .where('lr.customer_id = :cid', { cid: customer.id })
@@ -154,26 +162,38 @@ export class CallLogsService {
             .getOne();
 
         if (lead) {
-            // ── Reuse existing open lead ──────────────────────────────────────
+            // ── Reuse existing open lead ────────────────────────────────────────────
             this.logger.log(`[OUTBOUND] Reusing existing open lead id=${lead.id} status=${lead.status}`);
+            // If it is still NEW the agent hasn't marked a disposition yet
+            // but they just called — advance to CONTACTED so it doesn't sit in
+            // the fresh-leads queue as an unworked record.
+            if (lead.status === LeadStatus.NEW) {
+                lead.status = LeadStatus.CONTACTED;
+                lead.call1  = 'Interested (NotSure)';
+                await this.leadRepo.save(lead);
+                this.logger.log(`[OUTBOUND] Bumped lead ${lead.id} → CONTACTED + call1='Interested (NotSure)'`);
+            }
         } else {
             // No open lead — either brand-new customer or all prior leads are closed.
-            // Create a fresh 'Outbound Call' lead in both cases.
+            // Create a CONTACTED lead (not NEW) so the agent doesn't see it as an
+            // unworked fresh lead — the call already happened.
             this.logger.log(
-                `[OUTBOUND] No open lead found (total prior=${priorCountOb}) — creating new Outbound Call lead for customer ${customer.id}`,
+                `[OUTBOUND] No open lead (priorNonOutbound=${priorNonOutboundCount}) — creating CONTACTED Outbound Call lead`,
             );
             const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
                     customerId: customer.id,
                     source: 'Outbound Call',
-                    status: LeadStatus.NEW,
+                    status: LeadStatus.CONTACTED,          // call already made
+                    call1:  'Interested (NotSure)',         // pre-fill so queue shows correctly
                     leadCategory: 'WEBSITE',
-                    isRevisit: priorCountOb > 0, // true if they had prior (now-closed) leads
+                    // isRevisit only if they had prior leads from a real (non-outbound) source
+                    isRevisit: priorNonOutboundCount > 0,
                     ...(city && { city }),
                 }),
             );
-            this.logger.log(`[OUTBOUND] Created lead id=${lead.id} isRevisit=${lead.isRevisit}`);
+            this.logger.log(`[OUTBOUND] Created lead id=${lead.id} CONTACTED isRevisit=${lead.isRevisit}`);
         }
 
         // 3. Create the call log
@@ -297,22 +317,20 @@ export class CallLogsService {
             .getOne();
 
         if (lead) {
-            // ── Reuse existing open lead ──────────────────────────────────────
+            // ── Reuse existing open lead ────────────────────────────────────────────
+            // An inbound call on an already-open lead does NOT change isRevisit.
+            // The flag was set correctly when the lead was originally created.
             this.logger.log(
-                `[INBOUND] Step 4: Found existing open lead id=${lead.id} status=${lead.status} — reusing`,
+                `[INBOUND] Step 4: Found existing open lead id=${lead.id} status=${lead.status} — reusing (isRevisit unchanged)`,
             );
-            if (!lead.isRevisit) {
-                lead.isRevisit = true;
-                await this.leadRepo.save(lead);
-                this.logger.log(`[INBOUND] Step 4: Marked lead ${lead.id} as isRevisit=true`);
-            }
         } else {
-            // ── No open lead — create a fresh one ────────────────────────────
-            // This covers both: (a) customer has zero leads, (b) all prior leads are closed.
+            // ── No open lead — create a fresh one ─────────────────────────────────
+            // isRevisit is always false for a fresh inbound lead: someone calling
+            // our line for the first time (or after all prior leads closed) is
+            // starting a new enquiry, not revisiting.
             const priorCount = await this.leadRepo.count({ where: { customerId: customer.id } });
             this.logger.log(
-                `[INBOUND] Step 4: No open lead found. Prior count=${priorCount} ` +
-                `(${priorCount > 0 ? 'prior leads all closed' : 'brand new'}) → creating new Inbound IVR lead`,
+                `[INBOUND] Step 4: No open lead found. Prior count=${priorCount} — creating new Inbound IVR lead (isRevisit=false)`,
             );
             const city = params['city'] ?? params['City'];
             lead = await this.leadRepo.save(
@@ -321,11 +339,11 @@ export class CallLogsService {
                     source: 'Inbound IVR',
                     status: LeadStatus.NEW,
                     leadCategory: 'WEBSITE',
-                    isRevisit: priorCount > 0, // revisit=true if they had prior (now-closed) leads
+                    isRevisit: false,  // Inbound calls are always fresh — not revisits
                     ...(city && { city }),
                 }),
             );
-            this.logger.log(`[INBOUND] Step 4: ✅ Created lead id=${lead.id} isRevisit=${lead.isRevisit}`);
+            this.logger.log(`[INBOUND] Step 4: ✅ Created lead id=${lead.id} isRevisit=false`);
         }
 
         // ── 3. Create the call log with callback data filled in ─────────────────
