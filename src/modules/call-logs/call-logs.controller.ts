@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, Headers, UseGuards, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CallLogsService } from './call-logs.service';
@@ -25,8 +25,21 @@ export class CallLogsController {
     // ── GET /api/v1/call-logs/callback  (PUBLIC — called by qkonnect) ─────────
     @Get('callback')
     @ApiOperation({ summary: 'qkonnect call-completion webhook (no auth)' })
-    async callbackGet(@Query() params: Record<string, string>) {
-        return this.callLogsService.handleCallback(params);
+    async callbackGet(
+        @Query() params: Record<string, string>,
+        @Headers() headers: Record<string, string>,
+    ) {
+        // Merge header values into params so the service has one unified map.
+        // Headers take priority over query params for lead_category / city.
+        const merged: Record<string, string> = { ...params };
+
+        const categoryHeader = headers['lead_category'] ?? headers['leadcategory'] ?? headers['category'];
+        if (categoryHeader) merged['lead_category'] = categoryHeader;
+
+        const cityHeader = headers['city'];
+        if (cityHeader) merged['city'] = cityHeader;
+
+        return this.callLogsService.handleCallback(merged);
     }
 
 

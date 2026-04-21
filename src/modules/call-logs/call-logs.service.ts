@@ -181,13 +181,14 @@ export class CallLogsService {
                 `[OUTBOUND] No open lead (priorNonOutbound=${priorNonOutboundCount}) — creating CONTACTED Outbound Call lead`,
             );
             const city = params['city'] ?? params['City'];
+            const leadCategory = params['lead_category'] ?? params['leadCategory'] ?? params['category'] ?? 'WEBSITE';
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
                     customerId: customer.id,
                     source: 'Outbound Call',
                     status: LeadStatus.CONTACTED,          // call already made
                     call1:  'Interested (NotSure)',         // pre-fill so queue shows correctly
-                    leadCategory: 'WEBSITE',
+                    leadCategory,
                     // isRevisit only if they had prior leads from a real (non-outbound) source
                     isRevisit: priorNonOutboundCount > 0,
                     ...(city && { city }),
@@ -333,12 +334,13 @@ export class CallLogsService {
                 `[INBOUND] Step 4: No open lead found. Prior count=${priorCount} — creating new Inbound IVR lead (isRevisit=false)`,
             );
             const city = params['city'] ?? params['City'];
+            const leadCategory = params['lead_category'] ?? params['leadCategory'] ?? params['category'] ?? 'WEBSITE';
             lead = await this.leadRepo.save(
                 this.leadRepo.create({
                     customerId: customer.id,
                     source: 'Inbound IVR',
                     status: LeadStatus.NEW,
-                    leadCategory: 'WEBSITE',
+                    leadCategory,
                     isRevisit: false,  // Inbound calls are always fresh — not revisits
                     ...(city && { city }),
                 }),
