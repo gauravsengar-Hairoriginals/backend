@@ -1160,10 +1160,29 @@ export class LeadsService {
             return { category: cat, statusRows, dayTotals, grandTotal };
         }).filter(c => c.grandTotal > 0); // hide completely empty categories
 
+        // ── Overdue counts per category (snapshot of now, not per-day) ─────
+        // Leads with next_action_date in the past, not yet closed.
+        const overdueRows: Array<{ lead_category: string | null; cnt: string }> =
+            await this.dataSource.query(`
+                SELECT lead_category, COUNT(*) AS cnt
+                FROM lead_records
+                WHERE status NOT IN ('dropped','converted:Marked to EC','converted:Marked to HT','converted:Marked to VC')
+                  AND next_action_date IS NOT NULL
+                  AND next_action_date < NOW()
+                GROUP BY lead_category
+            `);
+
+        const overdueCounts: Record<string, number> = {};
+        for (const r of overdueRows) {
+            const cat = normCat(r.lead_category);
+            overdueCounts[cat] = (overdueCounts[cat] ?? 0) + parseInt(r.cnt, 10);
+        }
+
         return {
             days,   // ['2026-04-08', ..., '2026-04-14']
             today:  days[days.length - 1],
             categories,
+            overdueCounts,  // { EC: 3, HT: 1, WEBSITE: 5, ... }
         };
     }
 
@@ -1292,7 +1311,24 @@ export class LeadsService {
                 return b.grandTotal - a.grandTotal;
             });
 
-        return { days, today: days[days.length - 1], callers };
+        // ── Overdue counts per caller (snapshot of now, not per-day) ─────────
+        const overdueCallerRows: Array<{ assigned_to_id: string | null; cnt: string }> =
+            await this.dataSource.query(`
+                SELECT assigned_to_id, COUNT(*) AS cnt
+                FROM lead_records
+                WHERE status NOT IN ('dropped','converted:Marked to EC','converted:Marked to HT','converted:Marked to VC')
+                  AND next_action_date IS NOT NULL
+                  AND next_action_date < NOW()
+                GROUP BY assigned_to_id
+            `);
+
+        const overdueCounts: Record<string, number> = {};
+        for (const r of overdueCallerRows) {
+            const key = r.assigned_to_id ?? '__unassigned__';
+            overdueCounts[key] = (overdueCounts[key] ?? 0) + parseInt(r.cnt, 10);
+        }
+
+        return { days, today: days[days.length - 1], callers, overdueCounts };
     }
 
     // ── Aging Dashboard ───────────────────────────────────────────────────
