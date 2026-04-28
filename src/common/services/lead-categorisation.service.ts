@@ -38,8 +38,14 @@ export class LeadCategorisationService {
         if (existingCategory) return existingCategory;
 
         const haystack = `${source ?? ''} ${pageType ?? ''}`.toLowerCase();
-        if (haystack.includes('ec'))                                          return 'EC';
-        if (haystack.includes('ht'))                                          return 'HT';
+
+        // Use word boundaries to avoid matching 'ec' inside 'direct' or 'ht' inside 'night'
+        // We replace underscores/hyphens with spaces to ensure word boundaries work correctly
+        const searchBox = haystack.replace(/[^a-z0-9]/g, ' ');
+
+        if (/\b(ec|experience\s*cent(er|re))\b/.test(searchBox)) return 'EC';
+        if (/\b(ht|home\s*trial)\b/.test(searchBox))           return 'HT';
+        
         if ((source ?? '').toLowerCase() === 'popins' || haystack.includes('popin')) return 'POPIN';
         return 'WEBSITE';
     }
